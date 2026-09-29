@@ -1,5 +1,5 @@
-﻿# Free client demo: external Neon PostgreSQL + Brevo email on port 2525.
-# No database or paid service is created by this blueprint.
+﻿# Free client demo: external Neon PostgreSQL; password reset is disabled.
+# No database or mail service is created by this blueprint.
 services:
   - type: web
     name: tanvi-profit-studio
@@ -28,16 +28,8 @@ services:
         value: "true"
       - key: WEB_CONCURRENCY
         value: "1"
-      - key: EMAIL_HOST
-        value: smtp-relay.brevo.com
-      - key: EMAIL_PORT
-        value: "2525"
-      - key: EMAIL_HOST_USER
-        sync: false
-      - key: EMAIL_HOST_PASSWORD
-        sync: false
-      - key: DEFAULT_FROM_EMAIL
-        sync: false
+      - key: ENABLE_PASSWORD_RESET
+        value: "false"
       - key: INITIAL_OWNER_USERNAME
         value: client-demo
       - key: INITIAL_OWNER_EMAIL

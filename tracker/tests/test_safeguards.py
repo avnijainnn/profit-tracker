@@ -153,6 +153,26 @@ class SafeguardTests(TestCase):
         unknown = self.client.post(reverse("password_reset"), {"email": "unknown@example.test"})
         self.assertEqual(unknown.url, reverse("password_reset_done"))
 
+    @override_settings(PASSWORD_RESET_ENABLED=False)
+    def test_demo_password_reset_endpoints_are_disabled(self):
+        self.client.logout()
+        routes = [
+            reverse("password_reset"),
+            reverse("password_reset_done"),
+            reverse("password_reset_confirm", kwargs={"uidb64": "dXNlcg", "token": "invalid-token"}),
+            reverse("password_reset_complete"),
+        ]
+        for route in routes:
+            with self.subTest(route=route):
+                self.assertEqual(self.client.get(route).status_code, 404)
+
+    @override_settings(PASSWORD_RESET_ENABLED=False)
+    def test_demo_login_does_not_offer_password_reset(self):
+        self.client.logout()
+        response = self.client.get(reverse("two_factor:login"))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Forgot your password?")
+
     @override_settings(AXES_ENABLED=True)
     def test_login_failure_lockout(self):
         from django.contrib.auth import authenticate

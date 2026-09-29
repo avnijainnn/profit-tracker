@@ -4,7 +4,7 @@ from django.urls import include, path
 from django.views.generic import RedirectView
 from two_factor.urls import urlpatterns as two_factor_urls
 from two_factor.admin import AdminSiteOTPRequired
-from tracker.auth_views import ThrottledPasswordResetView
+from tracker.auth_views import ThrottledPasswordResetView, require_password_reset_enabled
 
 admin.site.__class__ = AdminSiteOTPRequired
 
@@ -13,9 +13,9 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("login/", RedirectView.as_view(pattern_name="two_factor:login", permanent=False), name="login"),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),
-    path("password-reset/", ThrottledPasswordResetView.as_view(), name="password_reset"),
-    path("password-reset/sent/", auth_views.PasswordResetDoneView.as_view(), name="password_reset_done"),
-    path("password-reset/<uidb64>/<token>/", auth_views.PasswordResetConfirmView.as_view(), name="password_reset_confirm"),
-    path("password-reset/complete/", auth_views.PasswordResetCompleteView.as_view(), name="password_reset_complete"),
+    path("password-reset/", require_password_reset_enabled(ThrottledPasswordResetView.as_view()), name="password_reset"),
+    path("password-reset/sent/", require_password_reset_enabled(auth_views.PasswordResetDoneView.as_view()), name="password_reset_done"),
+    path("password-reset/<uidb64>/<token>/", require_password_reset_enabled(auth_views.PasswordResetConfirmView.as_view()), name="password_reset_confirm"),
+    path("password-reset/complete/", require_password_reset_enabled(auth_views.PasswordResetCompleteView.as_view()), name="password_reset_complete"),
     path("", include("tracker.urls")),
 ]

@@ -2,7 +2,7 @@
 
 An editable **Python / Django** project. Open this folder in VS Code, change ordinary Python, HTML, and CSS files, and run the website locally. There is no dependency on a chat session, proprietary website builder, or JavaScript build service.
 
-**Status: production safeguards added; launch verification still required.** This is not a deployed or certified production system. Start with local fictional data. The free Render Blueprint uses Neon PostgreSQL and Brevo password-reset email. Follow `DEPLOYMENT.md` to create the fictional client workspace. `VERIFICATION.md` records the checks completed.
+**Status: production safeguards added; launch verification still required.** This is not a deployed or certified production system. Start with local fictional data. The free Render Blueprint uses Neon PostgreSQL and disables password reset in demo mode, so no mail service is required for the client preview. Follow `DEPLOYMENT.md` to create the fictional client workspace. `VERIFICATION.md` records the checks completed.
 
 The accounting and inventory work is being implemented in stages. See [`docs/technical-design-progress.md`](docs/technical-design-progress.md) for the selected Cash Profit / Operating Profit rules, completed changes, and remaining gaps.
 

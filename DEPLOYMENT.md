@@ -14,9 +14,10 @@ The workspace remains separate from this machine's SQLite database.
 - A free Neon PostgreSQL project. Copy its **direct connection string** (not a
   transaction-pooler URL); migrations need a session-level advisory lock.
   Leave Neon SSL enabled.
-- A free Brevo account for password-reset mail. Verify a sender address and
-  copy the SMTP login and SMTP key from Brevo. It currently offers up to 300
-  messages/day on its free tier.
+- A mail provider is not needed for the client demo. Password reset is disabled
+  in demo mode, and the owner signs in with the `client-demo` credentials.
+  For a real workspace, enable password reset and configure a transactional
+  email provider before switching out of demo mode.
 
 ## Render setup
 
@@ -28,9 +29,8 @@ The workspace remains separate from this machine's SQLite database.
    - `DJANGO_SECRET_KEY`: generate locally with
      `python -c "import secrets; print(secrets.token_urlsafe(64))"`.
    - `DATABASE_URL`: direct Neon connection string (contains its password).
-   - `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL`: your
-     verified Brevo SMTP credentials and sender.
-   - `INITIAL_OWNER_EMAIL`: mailbox where the owner can receive password resets.
+   - `INITIAL_OWNER_EMAIL`: the owner account's contact email (no email is sent
+     while password reset remains disabled).
    The blueprint generates a separate random password for `client-demo`.
    Copy it from this private Render environment into your password manager.
    **Do not commit secrets or paste credentials into chat.**
@@ -40,10 +40,8 @@ The workspace remains separate from this machine's SQLite database.
    account and leave its password, demo entries and database alone. It never
    prints the password. On first sign-in, enroll authenticator 2FA and save the
    recovery codes.
-4. Check password recovery in the deployed site. Render's free plan blocks
-   outbound ports 25, 465 and 587; this setup uses Brevo's supported STARTTLS
-   port 2525. Email delivery and sender approval require a live check. If mail
-   does not arrive, use Brevo's delivery logs before presenting account recovery.
+4. Password reset is disabled for the demo. Keep the demo login in a password
+   manager and share it with the client through a private channel.
 5. Open the URL once before the meeting. A free Render service sleeps after
    15 minutes without traffic; the next request can take about a minute to wake.
    Neon also has per-project compute and storage limits. Monitor both free plans.

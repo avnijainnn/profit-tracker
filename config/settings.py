@@ -8,6 +8,9 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEBUG = os.environ.get("DJANGO_DEBUG", "true").lower() == "true"
 DEMO_MODE = os.environ.get("APP_ENV") == "demo"
+PASSWORD_RESET_ENABLED = os.environ.get(
+    "ENABLE_PASSWORD_RESET", "false" if DEMO_MODE else "true"
+).lower() == "true"
 DEPLOYED = bool(os.environ.get("RENDER")) or os.environ.get("APP_ENV") in ("production", "staging", "demo")
 if DEPLOYED and DEBUG:
     raise RuntimeError("Hosted environments require DJANGO_DEBUG=false")
@@ -136,7 +139,11 @@ REQUIRE_2FA = not DEBUG or os.environ.get("REQUIRE_2FA", "false").lower() == "tr
 TWO_FACTOR_PATCH_ADMIN = True
 TWO_FACTOR_LOGIN_TIMEOUT = 300
 TWO_FACTOR_REMEMBER_COOKIE_AGE = None
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend" if not DEBUG else "django.core.mail.backends.console.EmailBackend"
+EMAIL_BACKEND = (
+    "django.core.mail.backends.smtp.EmailBackend"
+    if not DEBUG and PASSWORD_RESET_ENABLED
+    else "django.core.mail.backends.console.EmailBackend"
+)
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
 EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
 EMAIL_USE_TLS = True
@@ -145,7 +152,7 @@ EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 EMAIL_TIMEOUT = 15
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "")
 PASSWORD_RESET_TIMEOUT = 3600
-if not DEBUG and (not EMAIL_HOST or not DEFAULT_FROM_EMAIL):
+if not DEBUG and PASSWORD_RESET_ENABLED and (not EMAIL_HOST or not DEFAULT_FROM_EMAIL):
     raise RuntimeError("Configure EMAIL_HOST and DEFAULT_FROM_EMAIL before enabling production password recovery")
 if not DEBUG:
     LOGGING = {

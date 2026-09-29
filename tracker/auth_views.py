@@ -1,10 +1,21 @@
 from datetime import timedelta
+from functools import wraps
 from django.contrib.auth.views import PasswordResetView
+from django.conf import settings
 from django.db import transaction
-from django.http import HttpResponseRedirect
+from django.http import Http404, HttpResponseRedirect
 from django.utils import timezone
 from django.utils.crypto import salted_hmac
 from .models import RecoveryThrottle
+
+
+def require_password_reset_enabled(view):
+    @wraps(view)
+    def guarded_view(request, *args, **kwargs):
+        if not settings.PASSWORD_RESET_ENABLED:
+            raise Http404
+        return view(request, *args, **kwargs)
+    return guarded_view
 
 
 class ThrottledPasswordResetView(PasswordResetView):

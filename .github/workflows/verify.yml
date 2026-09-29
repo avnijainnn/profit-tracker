@@ -59,6 +59,7 @@ jobs:
           DJANGO_SECRET_KEY: ci-only-not-a-real-secret-0123456789012345678901234567890123456789
           DJANGO_ALLOWED_HOSTS: example.test
           DJANGO_CSRF_TRUSTED_ORIGINS: https://example.test
+          ENABLE_PASSWORD_RESET: "true"
           EMAIL_HOST: smtp.example.test
           DEFAULT_FROM_EMAIL: no-reply@example.test
         run: |
@@ -78,9 +79,7 @@ jobs:
           APP_ENV: demo
           RENDER_EXTERNAL_HOSTNAME: ci-demo.onrender.com
           DJANGO_SECRET_KEY: ci-only-not-a-real-secret-0123456789012345678901234567890123456789
-          EMAIL_HOST: smtp-relay.brevo.com
-          EMAIL_PORT: "2525"
-          DEFAULT_FROM_EMAIL: demo@example.test
+          ENABLE_PASSWORD_RESET: "false"
           INITIAL_OWNER_USERNAME: ci-demo
           INITIAL_OWNER_EMAIL: demo@example.test
           INITIAL_OWNER_PASSWORD: Ci-only-never-deploy-this-783214

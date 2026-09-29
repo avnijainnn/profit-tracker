@@ -1,0 +1,15 @@
+{% extends 'tracker/base.html' %}
+{% block content %}
+<header class="page-header"><div><div class="eyebrow">{{ month_label }}</div><h1>{{ title }}</h1><p>Use the actual date to place this entry in the right month.</p></div><a class="small-link" href="{{ cancel_url }}">← Back</a></header>
+{% if entry_kind == 'expense' %}<div class="notice subtle">Record an actual payment once. When the stock lot arrives, link any already-recorded manufacturing or shipping expenses so the lot captures its cost without duplicating cash outflow.</div>{% endif %}
+{% if entry_kind == 'income' %}<div class="notice subtle">Enter the net amount actually received for Cash Profit. Separately enter gross sales revenue and the sale date when known for Operating Profit; advances can leave those fields blank.</div>{% endif %}
+{% if stock_form %}<div class="notice subtle">Stock movements do not create receipts. A received lot records full manufacturing and delivery costs as inventory; payment date affects Cash Profit and FIFO lot cost affects Operating Profit when units sell.</div>{% endif %}
+<form method="post" class="panel entry-form">{% csrf_token %}<div class="form-grid">{% include 'tracker/fields.html' with form=form optional_field_names=optional_field_names %}</div>
+{% if optional_fields %}<details class="optional-details"><summary>Optional details</summary><div class="form-grid">{% include 'tracker/fields.html' with form=form optional_field_names=optional_field_names only_optional=True %}</div></details>{% endif %}
+{% if entry_kind == 'expense' or entry_kind == 'income' %}<div class="inline-create-group">
+	{% if entry_kind == 'expense' %}<details class="inline-create" {% if category_form.errors %}open{% endif %}><summary>Add a category</summary><div class="form-grid">{% include 'tracker/fields.html' with form=category_form %}</div><button class="btn btn-light" type="submit" name="inline_action" value="category" formnovalidate>Create and select category</button></details>{% endif %}
+	<details class="inline-create" {% if account_form.errors %}open{% endif %}><summary>Add a payment account</summary><div class="form-grid">{% include 'tracker/fields.html' with form=account_form %}</div><button class="btn btn-light" type="submit" name="inline_action" value="account" formnovalidate>Create and select account</button></details>
+</div>{% endif %}
+<div class="form-actions"><button class="btn btn-primary" type="submit">{{ save_label|default:'Save entry' }}</button>{% if save_another %}<button class="btn btn-light" type="submit" name="save_another" value="1">Save & add another</button>{% endif %}<a class="btn btn-plain" href="{{ cancel_url }}">Cancel</a>{% if entry %}<a class="danger-link push-right" href="{% url 'entry_void' entry.pk %}?month={{ month }}">Void entry</a>{% endif %}</div></form>
+{% if entry_kind == 'expense' %}{{ account_kinds|json_script:'account-kinds' }}{% endif %}
+{% endblock %}

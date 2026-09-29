@@ -1,0 +1,37 @@
+{% extends 'tracker/base.html' %}{% load tracker_tags %}
+{% block title %}{{ month_label }} · Profit Studio{% endblock %}
+{% block content %}
+<header class="page-header"><div><div class="eyebrow">Monthly tracker</div><h1>{{ month_label }}</h1><p>Receipts, spending, and stock for this month.</p></div>{% include 'tracker/month_picker.html' %}</header>
+{% if not has_accounts %}<section class="notice"><strong>Start with your accounts.</strong> Add the starter accounts and categories in <a href="{% url 'settings' %}">Settings</a>, then record the month.</section>{% endif %}
+<div class="notice subtle">{% if review.closed_at %}This month is closed. Reopen it with a reason before changing entries.{% else %}This month is open for entries.{% endif %} <a href="{% url 'month_review' %}?month={{ month }}">Review month →</a></div>
+<div class="action-row"><div class="pills"><span class="pill">{{ month_label }}</span><span class="muted">{{ entry_count }} entries</span></div><div class="button-row"><a class="btn btn-light" href="{% url 'entry_add' 'expense' %}?month={{ month }}">＋ Add expense</a><a class="btn btn-primary" href="{% url 'entry_add' 'income' %}?month={{ month }}">＋ Add revenue</a><details class="more-actions"><summary class="btn btn-plain">More actions</summary><div class="more-actions-menu"><a href="{% url 'monthly_reports' %}?year={{ month|slice:':4' }}">Monthly reports</a><a href="{% url 'export_csv' %}?month={{ month }}">Export this month</a><a href="{% url 'bank_tally' %}?month={{ month }}">Payment checks</a><a href="{% url 'entry_add' 'transfer' %}?month={{ month }}">Record transfer or repayment</a><a href="{% url 'entry_add' 'withdrawal' %}?month={{ month }}">Record owner withdrawal</a><a href="{% url 'month_review' %}?month={{ month }}">Review or close month</a></div></details></div></div>
+<section class="stat-grid" aria-label="Monthly totals">
+  <article class="stat-card"><span class="stat-label">Money received</span><h2>{{ totals.income|money }}</h2><p>Net receipts across all sources</p></article>
+  <article class="stat-card"><span class="stat-label">Expenses</span><h2>{{ totals.expense|money }}</h2><p>Actual payment dates, by category</p></article>
+  <article class="stat-card featured"><span class="stat-label">Cash Profit</span><h2>{{ totals.cash_profit|money }}</h2><p>Receipts − payments from your accounts in {{ month_label }}</p></article>
+  <article class="stat-card featured"><span class="stat-label">Operating Profit</span><h2>{{ totals.operating_profit|money }}</h2><p>Sale-date revenue − operating expenses − FIFO COGS</p></article>
+  {% if totals.withdrawal %}<article class="stat-card"><span class="stat-label">After owner withdrawals</span><h2>{{ totals.after_withdrawals|money }}</h2><p>Withdrawals: {{ totals.withdrawal|money }}</p></article>{% endif %}
+</section>
+<div class="notice subtle">Cash Profit uses your accounts' receipt and payment dates; expenses paid by someone else do not reduce it. Operating Profit uses separately entered sales revenue by sale date, less operating expenses and FIFO stock cost and write-offs. {{ totals.unrecognized_receipts }} receipts have no sales amount attached; {{ totals.cogs_unknown_units }} sold units have unknown lot costs. {{ totals.writeoff_unknown_units }} written-off units have unknown costs. Operating Profit is incomplete while any of these counts is nonzero. Transfers are excluded.</div>
+<div class="two-col">
+  <section class="panel"><div class="panel-heading"><div><span class="eyebrow">Revenue</span><h2>Source breakdown</h2></div><span class="round-label">₹</span></div>
+    {% for label, value in sources %}<div class="breakdown-row"><span><i class="source-dot"></i>{{ label }}</span><strong>{{ value|money }}</strong></div>{% empty %}<div class="empty"><h3>No revenue recorded.</h3><p>Add Razorpay, COD, manual UPI, or cash receipts to see totals here.</p></div>{% endfor %}
+    <div class="panel-foot">Use the actual receipt date. Monthly totals accumulate automatically.</div>
+  </section>
+  <section class="panel"><div class="panel-heading"><div><span class="eyebrow">Expenses</span><h2>Category breakdown</h2></div><a class="small-link" href="{% url 'transactions' %}?month={{ month }}&kind=expense">View all ↗</a></div>
+    {% for label, value in categories %}<div class="breakdown-row"><span>{{ label }}</span><strong>{{ value|money }}</strong></div>{% empty %}<div class="empty"><h3>No expenses yet.</h3><p>Record the actual payment date and category, even if you enter it next month.</p></div>{% endfor %}
+    {% if cost_behaviors %}<div class="panel-foot">Cost behavior</div>{% for label, value in cost_behaviors %}<div class="breakdown-row"><span>{{ label }}</span><strong>{{ value|money }}</strong></div>{% endfor %}{% endif %}
+  </section>
+</div>
+<section class="stock-strip"><div><span class="eyebrow">Stock</span><h2>Units sold this month</h2><p>Recorded separately from revenue.</p></div><div class="unit-stat"><strong>{{ sold_bags }}</strong><span>Bags sold</span></div><div class="unit-stat"><strong>{{ sold_thrift }}</strong><span>Thrift units sold</span></div><div class="unit-stat"><strong>{{ returned }}</strong><span>Saleable returns</span></div><a class="btn btn-light" href="{% url 'products' %}?month={{ month }}">Open bags & stock ↗</a></section>
+<section id="entries" class="panel entry-list"><div class="panel-heading"><div><span class="eyebrow">Entries</span><h2>{{ month_label }} entries</h2></div><span class="muted">{{ page.paginator.count }} matches</span></div>
+  <nav class="entry-tabs" aria-label="Entry type">
+    <a {% if kind == 'income' %}aria-current="page" class="active"{% endif %} href="?month={{ month }}&kind=income&q={{ q|urlencode }}#entries">Revenue</a>
+    <a {% if kind == 'expense' %}aria-current="page" class="active"{% endif %} href="?month={{ month }}&kind=expense&q={{ q|urlencode }}#entries">Expenses</a>
+    <a {% if kind == 'all' %}aria-current="page" class="active"{% endif %} href="?month={{ month }}&kind=all&q={{ q|urlencode }}#entries">All</a>
+  </nav>
+  <form method="get" action="#entries" class="entry-search"><input type="hidden" name="month" value="{{ month }}"><input type="hidden" name="kind" value="{{ kind }}"><label class="sr-only" for="entry-search">Search entries</label><input id="entry-search" type="search" name="q" value="{{ q }}" placeholder="Search source, category, account, product or reference"><button class="btn btn-light" type="submit">Search</button>{% if q %}<a class="small-link" href="?month={{ month }}&kind={{ kind }}#entries">Clear</a>{% endif %}</form>
+  {% include 'tracker/entry_table.html' with entries=page.object_list %}
+  {% if page.has_other_pages %}<div class="panel-foot pagination">{% if page.has_previous %}<a href="?month={{ month }}&kind={{ kind }}&q={{ q|urlencode }}&page={{ page.previous_page_number }}#entries">Previous</a>{% endif %}<span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a href="?month={{ month }}&kind={{ kind }}&q={{ q|urlencode }}&page={{ page.next_page_number }}#entries">Next</a>{% endif %}</div>{% endif %}
+</section>
+{% endblock %}

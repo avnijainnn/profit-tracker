@@ -1,0 +1,2 @@
+# Optional local browser verification; not a production dependency.
+playwright>=1.50,<2

@@ -1,0 +1,6 @@
+<form method="get" class="month-picker">
+  <label for="month">Review month</label>
+  <input class="form-control" type="month" id="month" name="month" value="{{ month }}" required>
+  {% if selected_account %}<input type="hidden" name="account" value="{{ selected_account.pk }}">{% endif %}
+  <button class="btn btn-light" type="submit">View</button>
+</form>

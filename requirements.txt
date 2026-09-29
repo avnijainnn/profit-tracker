@@ -1,0 +1,2 @@
+# Local bootstrap only. Production uses a hash-locked requirements.lock (see DEPLOYMENT.md).
+-r requirements.in

@@ -1,0 +1,48 @@
+﻿# Free client demo: external Neon PostgreSQL + Brevo email on port 2525.
+# No database or paid service is created by this blueprint.
+services:
+  - type: web
+    name: tanvi-profit-studio
+    runtime: python
+    region: singapore
+    plan: free
+    autoDeployTrigger: "off"
+    buildCommand: bash build.sh
+    startCommand: bash start.sh
+    healthCheckPath: /healthz/
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.14
+      - key: APP_ENV
+        value: demo
+      - key: DJANGO_DEBUG
+        value: "false"
+      - key: DJANGO_SECRET_KEY
+        sync: false
+      # Host and HTTPS CSRF origin come from RENDER_EXTERNAL_HOSTNAME.
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SSL_REQUIRE
+        value: "true"
+      - key: TRUST_PROXY_HTTPS
+        value: "true"
+      - key: WEB_CONCURRENCY
+        value: "1"
+      - key: EMAIL_HOST
+        value: smtp-relay.brevo.com
+      - key: EMAIL_PORT
+        value: "2525"
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        sync: false
+      - key: INITIAL_OWNER_USERNAME
+        value: client-demo
+      - key: INITIAL_OWNER_EMAIL
+        sync: false
+      - key: INITIAL_OWNER_PASSWORD
+        generateValue: true
+      - key: DEMO_SEED_DATA
+        value: "true"

@@ -1,0 +1,39 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>{% block title %}Profit Studio{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'tracker/app.css' %}?v=3">
+  <script src="{% static 'tracker/app.js' %}?v=3" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+{% if user.is_authenticated %}
+<aside class="sidebar">
+  <a class="brand" href="{% url 'dashboard' %}?month={{ month }}"><span class="brand-mark">p.</span><span>profit studio<small>MONTHLY TRACKER</small></span></a>
+  <div class="nav-label">WORKSPACE</div>
+  <nav aria-label="Main navigation">
+    <a class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}?month={{ month }}"><span>◫</span> Monthly tracker</a>
+    <a class="{% if request.resolver_match.url_name == 'products' or request.resolver_match.url_name == 'product_detail' or request.resolver_match.url_name == 'product_add' or request.resolver_match.url_name == 'product_edit' or request.resolver_match.url_name == 'stock_add' %}active{% endif %}" href="{% url 'products' %}?month={{ month }}"><span>▣</span> Bags & stock</a>
+    <a class="{% if request.resolver_match.url_name == 'settings' %}active{% endif %}" href="{% url 'settings' %}?month={{ month }}"><span>⚙</span> Settings</a>
+  </nav>
+  <div class="sidebar-tools">
+    <a href="{% url 'monthly_reports' %}?year={{ month|slice:':4' }}">Monthly reports</a>
+    <a href="{% url 'bank_tally' %}?month={{ month }}">Payment checks</a>
+    <a href="{% url 'history' %}?month={{ month }}">Change history</a>
+    <a href="{% url 'month_review' %}?month={{ month }}">Month review</a>
+  </div>
+  <div class="profile"><span class="avatar">{{ user.username|first|upper }}</span><div>{{ user.username }}<small>Private workspace</small></div><div class="profile-actions"><a class="text-button" href="{% url 'two_factor:profile' %}">Security</a><form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="text-button" aria-label="Log out">↪</button></form></div></div>
+</aside>
+{% endif %}
+<main id="main" class="{% if user.is_authenticated %}main{% else %}login-main{% endif %}">
+  {% if demo_mode and user.is_authenticated %}<div class="notice subtle">Client demo · Fictional sample data. Use this workspace for testing only.</div>{% endif %}
+  {% for message in messages %}<div class="notice success" role="status">{{ message }}</div>{% endfor %}
+  {% block content_wrapper %}{% block content %}{% endblock %}{% endblock %}
+  {% if user.is_authenticated %}<footer>Profit Studio · statement-based tracking only. Not a full accounting system.</footer>{% endif %}
+</main>
+</body>
+</html>

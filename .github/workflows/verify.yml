@@ -1,0 +1,92 @@
+name: Verify before deploy
+"on":
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      resolve_dependencies:
+        description: Resolve a Linux dependency lock, run checks, and return it as an artifact
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  postgres-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: local-ci-only
+          POSTGRES_DB: profit_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DJANGO_DEBUG: "true"
+      DATABASE_URL: postgresql://test_user:local-ci-only@localhost:5432/profit_test
+      DATABASE_SSL_REQUIRE: "false"
+      DJANGO_SETTINGS_MODULE: config.test_settings
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Resolve lock on the production OS family (manual first-run only)
+        if: github.event_name == 'workflow_dispatch' && inputs.resolve_dependencies
+        run: |
+          python -m pip install 'pip-tools>=7.5,<8'
+          python -m piptools compile --generate-hashes --output-file requirements.lock requirements.in
+      - name: Require reproducible dependencies
+        run: test -f requirements.lock
+      - run: python -m pip install --require-hashes -r requirements.lock
+      - run: python -m pip install 'pip-audit>=2.9,<3'
+      - run: python -m pip_audit --strict -r requirements.lock
+      - run: python manage.py check
+      - run: python manage.py makemigrations --check --dry-run
+      - run: python manage.py migrate --noinput
+      - run: python manage.py test --noinput
+      - name: Production configuration smoke check
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings
+          DJANGO_DEBUG: "false"
+          APP_ENV: staging
+          DJANGO_SECRET_KEY: ci-only-not-a-real-secret-0123456789012345678901234567890123456789
+          DJANGO_ALLOWED_HOSTS: example.test
+          DJANGO_CSRF_TRUSTED_ORIGINS: https://example.test
+          EMAIL_HOST: smtp.example.test
+          DEFAULT_FROM_EMAIL: no-reply@example.test
+        run: |
+          python manage.py collectstatic --noinput
+          python manage.py check --deploy --fail-level WARNING
+      - name: Return the verified Linux lock for review and commit
+        if: github.event_name == 'workflow_dispatch' && inputs.resolve_dependencies
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-linux-dependency-lock
+          path: requirements.lock
+          retention-days: 7
+      - name: Free demo startup and restart against PostgreSQL
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings
+          DJANGO_DEBUG: "false"
+          APP_ENV: demo
+          RENDER_EXTERNAL_HOSTNAME: ci-demo.onrender.com
+          DJANGO_SECRET_KEY: ci-only-not-a-real-secret-0123456789012345678901234567890123456789
+          EMAIL_HOST: smtp-relay.brevo.com
+          EMAIL_PORT: "2525"
+          DEFAULT_FROM_EMAIL: demo@example.test
+          INITIAL_OWNER_USERNAME: ci-demo
+          INITIAL_OWNER_EMAIL: demo@example.test
+          INITIAL_OWNER_PASSWORD: Ci-only-never-deploy-this-783214
+          DEMO_SEED_DATA: "true"
+        run: |
+          bash -n build.sh start.sh
+          python manage.py check --deploy --fail-level WARNING
+          python manage.py prepare_deploy
+          python manage.py prepare_deploy

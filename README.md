@@ -29,7 +29,7 @@ The accounting and inventory work is being implemented in stages. See [`docs/tec
 - Active statement references are unique per account; stale financial edits cannot overwrite a newer change.
 - Month review/closing, reasoned reopening, and snapshots; stock backdating cannot alter a later closed month.
 - Stock reversals preserve the original record and correct both available stock and sold-unit statistics.
-- Production-enforced authenticator 2FA, backup codes, password-recovery email, and login throttling.
+- Email/password login and login throttling. Password recovery is disabled for the client demo; no email provider or authenticator is required.
 - PostgreSQL/Gunicorn/WhiteNoise configuration, a Render Starter web-service template for use with separately configured Supabase PostgreSQL, a PostgreSQL CI workflow, and an encrypted-backup helper. Cloud saving is not active until those services are provisioned and `DATABASE_URL` is configured.
 
 ## 1. Open it in VS Code
@@ -54,7 +54,7 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe manage.py runserver
 ```
 
-`createsuperuser` asks you to choose your own username and password. There is no default login. Password characters are not displayed as you type — that is normal. An email address can be left blank for this local prototype.
+`createsuperuser` asks you to choose your own username and password. There is no default login. Password characters are not displayed as you type — that is normal. Supply an email address: it is required for sign-in. The username is an internal/display identifier.
 
 ### macOS / Linux
 
@@ -138,7 +138,7 @@ Here `python` means your selected `.venv` interpreter; use the explicit Windows/
 - **Django 5.2 LTS series**, using the latest compatible patch installed by pip.
 - **SQLite** for local demos; **PostgreSQL** is required when debug is disabled. Local data persists in `db.sqlite3`.
 - **Django templates + plain CSS + small vanilla JavaScript**. Internal links and forms use same-origin fetch navigation to keep the shared app shell in place; server-rendered pages remain the source of truth. No React, API layer, HTMX, Bootstrap, npm build, or external CDN is required. Full-page navigation remains available when JavaScript is disabled, and file exports use normal browser downloads.
-- Django authentication/CSRF/password validation, django-two-factor-auth for authenticator/backup codes, and django-axes for login throttling.
+- Django email/password authentication, CSRF/password validation, and django-axes for login throttling.
 - Decimal database fields for money; integer quantities for stock.
 
 Money, stock, and month-closing services serialize changes per workspace using PostgreSQL row locks. The CI suite includes real concurrent PostgreSQL submissions. SQLite is only a convenient local demo database; it does not provide those concurrency guarantees.
@@ -183,7 +183,7 @@ The `.gitignore` excludes the database, virtualenv, local secret, and environmen
 
 This folder is **not deployed**. Do not expose `runserver` to the internet.
 
-Read **`DEPLOYMENT.md`** in order. It covers locking dependencies, PostgreSQL CI, a separate staging deployment, SMTP/2FA verification, backup restoration, and a controlled first-month pilot. `render.yaml` defines a Render Free web service only; it does not create Supabase resources or a database. No account, database, server, domain, monitoring subscription, or paid service has been created by this handoff.
+Read **`DEPLOYMENT.md`** in order. It covers locking dependencies, PostgreSQL CI, a separate staging deployment, email/password sign-in verification, backup restoration, and a controlled first-month pilot. `render.yaml` defines a Render Free web service only; it does not create Supabase resources or a database. No account, database, server, domain, monitoring subscription, or paid service has been created by this handoff.
 
 Production settings reject missing secrets, hosts, origins, PostgreSQL, or email setup. The build also rejects a missing **`requirements.lock`**. This lockfile must be resolved on a network-enabled development machine, tested, audited, and committed; it has not been fabricated here. Do not bypass these checks to make a deployment appear successful.
 

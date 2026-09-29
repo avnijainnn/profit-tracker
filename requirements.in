@@ -4,4 +4,3 @@ dj-database-url>=3,<4
 gunicorn>=23,<24
 whitenoise>=6.9,<7
 django-axes>=8.3,<9
-django-two-factor-auth[phonenumberslite]>=1.18.1,<2

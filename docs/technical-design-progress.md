@@ -28,7 +28,7 @@ This file tracks the proposed accounting and inventory design against the curren
 - A dedicated wallet transaction ledger and live per-mode balances. Current account transfers and expenses can be compared to manual totals but do not produce authoritative wallet balances.
 - Subcategory creation/editing UI. Category behavior totals are shown on the dashboard; behavior does not itself change recognition timing.
 - Unpaid operating expenses/accruals, sales-to-settlement matching, and sale allocation across a settlement spanning multiple sale dates. For now, enter a separate recognized sales amount/date when known; a missing amount remains explicitly incomplete.
-- Staff access/invitation flow, PWA manifest/service worker, restore-tested backups, hosted SMTP/2FA delivery check, and deployment verification. Local PostgreSQL verification is tracked in `VERIFICATION.md`.
+- Staff access/invitation flow, PWA manifest/service worker, restore-tested backups, hosted email/password login check, and deployment verification. Local PostgreSQL verification is tracked in `VERIFICATION.md`.
 - A migration/review process to enter real historical lot costs. Until then, flagged legacy COGS makes historical Operating Profit incomplete.
 
 The current implementation should be treated as a staged management-tracking build, not certified accounting software or a complete ledger system.

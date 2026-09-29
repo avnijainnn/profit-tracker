@@ -1,5 +1,11 @@
 # Production safeguards update
 
+## Email/password login update ? 29 September 2026
+
+- Removed authenticator setup, code verification, backup-code pages and runtime dependencies.
+- Sign in with the existing account email and password; saved records and password hashes are preserved.
+- Retained login throttling, secure sessions, CSRF protection and workspace ownership. Demo password recovery remains disabled.
+
 This update modifies the original Django project; existing schema changes are included as migrations 0002 and 0003. It has not been deployed or cleared for real financial data.
 
 ## Data safeguards

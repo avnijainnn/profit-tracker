@@ -1,8 +1,30 @@
-﻿# Verification — 29 September 2026
+# Verification — 29 September 2026
 
 This review covers the implemented Django application. It does not certify the
 unbuilt modules in `docs/technical-design-progress.md`. No hosted URL has been
-created: GitHub, Render, Neon and Brevo accounts must still be connected before deployment.
+verified in this report; hosted deployment remains to be checked in Render. No email provider is needed for the demo.
+
+## Email/password update - 29 September 2026
+
+The owner requested removal of two-factor authentication. Login now uses the
+existing account email and password, with no authenticator or backup-code step.
+Demo password recovery remains disabled.
+
+- PostgreSQL 16: 96 tests passed with no skips, including email login, lockout
+  normalization, successful-login counter reset, CSRF, safe redirects, admin
+  permissions, existing account ownership and the accounting/concurrency suite.
+- Nine headless Edge workflows passed, including email login/logout, optional
+  recovery, demo login without recovery, financial workflows and responsive
+  screens at 1440, 390 and 320 pixels. The first run found two outdated browser
+  selectors; both were corrected and those two scenarios passed on rerun.
+- Upgraded an isolated PostgreSQL database from commit aa70e34 with an enrolled
+  authenticator and seeded records. Email login and logout work after upgrade;
+  user ID, password hash and account/product/entry counts are unchanged.
+- Production settings pass the deployment checks without SMTP settings.
+  Migration consistency checks find no new schema changes. The removed feature's
+  dependencies were pruned while keeping the remaining lockfile versions/hashes.
+
+The results below record the earlier review before this authentication change.
 
 ## Executed checks
 

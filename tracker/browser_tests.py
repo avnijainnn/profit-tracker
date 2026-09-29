@@ -61,10 +61,10 @@ class BrowserWorkflows(StaticLiveServerTestCase):
         self.assertEqual(self.errors, [], "Browser JavaScript errors")
 
     def login(self):
-        self.page.goto(self.live_server_url + "/account/login/")
-        self.page.get_by_label("Username").fill("browser_tester")
+        self.page.goto(self.live_server_url + "/login/")
+        self.page.get_by_label("Email").fill("tester@example.test")
         self.page.get_by_label("Password").fill("BrowserOnly!2026")
-        self.page.get_by_role("button", name="Continue", exact=True).click()
+        self.page.get_by_role("button", name="Sign in", exact=True).click()
         expect(self.page.get_by_role("heading", name="Source breakdown")).to_be_visible()
 
     def go(self, path):
@@ -233,7 +233,7 @@ class BrowserWorkflows(StaticLiveServerTestCase):
         artifact_dir = Path(tempfile.gettempdir()) / "profit-tracker-ui-review"
         artifact_dir.mkdir(exist_ok=True)
         paths = ["/?month=2025-09", "/settings/", "/transactions/new/expense/", "/products/",
-                 f"/products/{self.product.pk}/?month=2025-09", "/reports/?year=2025", "/bank-tally/", "/month-review/", "/history/", "/account/two_factor/", reverse("stock_add", args=[self.product.pk]) + "?action=received"]
+                 f"/products/{self.product.pk}/?month=2025-09", "/reports/?year=2025", "/bank-tally/", "/month-review/", "/history/", reverse("stock_add", args=[self.product.pk]) + "?action=received"]
         for width in (1440, 390, 320):
             self.page.set_viewport_size({"width": width, "height": 950})
             for index, path in enumerate(paths):
@@ -253,7 +253,7 @@ class BrowserWorkflows(StaticLiveServerTestCase):
         self.page.get_by_role("navigation", name="Main navigation").get_by_role("link", name="Monthly tracker", exact=False).click()
         self.heading("September 2025")
         self.page.get_by_role("button", name="Log out", exact=True).click()
-        self.heading("Secure sign-in")
+        expect(self.page.get_by_label("Email")).to_be_visible()
         print(f"Browser screenshots: {artifact_dir}")
 
     def test_failed_save_keeps_form_and_can_retry(self):
@@ -295,34 +295,13 @@ class BrowserWorkflows(StaticLiveServerTestCase):
         self.page.go_back()
         self.heading("September 2025")
 
-    def test_authenticator_setup_backup_login_and_password_reset(self):
-        import base64
+    def test_email_login_logout_and_password_reset(self):
         import re
-        from urllib.parse import urlparse, parse_qs
         from django.core import mail
-        from django_otp.oath import totp
 
-        self.page.set_viewport_size({"width": 390, "height": 950})
-        self.page.get_by_role("link", name="Security", exact=True).click()
-        self.page.get_by_role("link", name="Enable Two-Factor Authentication", exact=True).click()
-        self.page.get_by_role("button", name="Next", exact=True).click()
-        secret_url = self.page.locator('a[href^="otpauth:"]').get_attribute("href")
-        secret = parse_qs(urlparse(secret_url).query)["secret"][0]
-        token = str(totp(base64.b32decode(secret))).zfill(6)
-        self.page.locator('input[name="generator-token"]').fill(token)
-        self.page.get_by_role("button", name="Next", exact=True).click()
-        expect(self.page.get_by_text("Congratulations,", exact=False)).to_be_visible()
-        self.page.get_by_role("link", name="Back to Account Security").click()
-        self.page.get_by_role("link", name="Show Codes").click()
-        self.page.get_by_role("button", name="Generate Tokens").click()
-        backup = self.page.locator(".security-panel li").first.inner_text().strip()
         self.page.get_by_role("button", name="Log out", exact=True).click()
-        self.page.get_by_label("Username").fill("browser_tester")
-        self.page.get_by_label("Password").fill("BrowserOnly!2026")
-        self.page.get_by_role("button", name="Continue", exact=True).click()
-        self.page.get_by_role("button", name="Use a backup code").click()
-        self.page.locator('input[name="backup-otp_token"]').fill(backup)
-        self.page.get_by_role("button", name="Continue", exact=True).click()
+        expect(self.page.get_by_label("Email")).to_be_visible()
+        self.login()
         expect(self.page.locator(".sidebar")).to_be_visible()
         self.page.get_by_role("button", name="Log out", exact=True).click()
         self.page.get_by_role("link", name="Forgot your password?").click()
@@ -336,6 +315,22 @@ class BrowserWorkflows(StaticLiveServerTestCase):
         self.page.locator('input[name="new_password2"]').fill("ChangedOnly!2026")
         self.page.get_by_role("button", name="Save password").click()
         self.heading("Password updated")
+        self.page.get_by_role("link", name="Sign in", exact=True).click()
+        self.page.get_by_label("Email").fill("TESTER@example.test")
+        self.page.get_by_label("Password").fill("ChangedOnly!2026")
+        self.page.get_by_role("button", name="Sign in", exact=True).click()
+        expect(self.page.locator(".sidebar")).to_be_visible()
+
+    @override_settings(PASSWORD_RESET_ENABLED=False)
+    def test_demo_email_login_without_recovery(self):
+        self.page.get_by_role("button", name="Log out", exact=True).click()
+        expect(self.page.get_by_label("Email")).to_be_visible()
+        expect(self.page.get_by_role("link", name="Forgot your password?")).to_have_count(0)
+        for width in (1440, 390, 320):
+            self.page.set_viewport_size({"width": width, "height": 900})
+            self.assertFalse(self.page.evaluate("document.documentElement.scrollWidth > innerWidth"))
+        self.login()
+        expect(self.page.locator(".sidebar")).to_be_visible()
 
     def test_forms_work_without_javascript(self):
         self.context.close()

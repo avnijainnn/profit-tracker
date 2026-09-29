@@ -1,4 +1,4 @@
-﻿# Free Render client demo
+# Free Render client demo
 
 This blueprint costs **$0 within provider free-tier limits**. It creates only a
 Render web service; it does not create a database or send credentials anywhere.
@@ -15,7 +15,7 @@ The workspace remains separate from this machine's SQLite database.
   transaction-pooler URL); migrations need a session-level advisory lock.
   Leave Neon SSL enabled.
 - A mail provider is not needed for the client demo. Password reset is disabled
-  in demo mode, and the owner signs in with the `client-demo` credentials.
+  in demo mode, and the owner signs in with their account email and password.
   For a real workspace, enable password reset and configure a transactional
   email provider before switching out of demo mode.
 
@@ -29,7 +29,7 @@ The workspace remains separate from this machine's SQLite database.
    - `DJANGO_SECRET_KEY`: generate locally with
      `python -c "import secrets; print(secrets.token_urlsafe(64))"`.
    - `DATABASE_URL`: direct Neon connection string (contains its password).
-   - `INITIAL_OWNER_EMAIL`: the owner account's contact email (no email is sent
+   - `INITIAL_OWNER_EMAIL`: the owner account's sign-in email (no email is sent
      while password reset remains disabled).
    The blueprint generates a separate random password for `client-demo`.
    Copy it from this private Render environment into your password manager.
@@ -38,8 +38,10 @@ The workspace remains separate from this machine's SQLite database.
    initializes the first regular (non-admin) user, and adds a fictional tote
    walkthrough to the empty Neon database. Subsequent starts see the existing
    account and leave its password, demo entries and database alone. It never
-   prints the password. On first sign-in, enroll authenticator 2FA and save the
-   recovery codes.
+   prints the password. Sign in with `INITIAL_OWNER_EMAIL` and the password you
+   configured. `INITIAL_OWNER_USERNAME` is only an internal/display identifier;
+   no authenticator setup or code is required. Existing accounts retain their
+   email, password and saved records after this update.
 4. Password reset is disabled for the demo. Keep the demo login in a password
    manager and share it with the client through a private channel.
 5. Open the URL once before the meeting. A free Render service sleeps after

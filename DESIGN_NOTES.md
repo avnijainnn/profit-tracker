@@ -85,4 +85,4 @@ The product's lifetime recorded spend is ₹36,600, split August ₹35,000 and S
 2. Have Tanvi review one completed month against her actual workflow, using fictional figures first.
 3. Confirm the six outstanding questions before implementing SKU financial profit, allocations, reimbursements, and a full returns policy.
 4. Add bank CSV import and review only after the manual records and classification rules are accepted.
-5. Follow DEPLOYMENT.md to finish dependency locking, PostgreSQL CI, staging, actual SMTP/2FA checks, backup restoration, and production release.
+5. Follow DEPLOYMENT.md to finish dependency locking, PostgreSQL CI, staging, actual email/password login checks, backup restoration, and production release.

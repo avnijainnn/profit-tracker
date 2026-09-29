@@ -17,10 +17,11 @@ class Command(BaseCommand):
     @transaction.atomic
     def handle(self, *args, **options):
         User = get_user_model()
+        options["email"] = options["email"].strip().casefold()
         if User.objects.filter(username=options["username"]).exists():
             raise CommandError("Username already exists. No account changed.")
         if User.objects.filter(email__iexact=options["email"]).exists():
-            raise CommandError("Use a unique recovery email for each account.")
+            raise CommandError("Use a unique login email for each account.")
         try:
             validate_email(options["email"])
             user = User(username=options["username"], email=options["email"], is_staff=False, is_superuser=False)
@@ -34,4 +35,4 @@ class Command(BaseCommand):
         user.set_password(password)
         user.save()
         setup_defaults(user)
-        self.stdout.write(self.style.SUCCESS("Ordinary workspace user created. Enroll 2FA at first production login and save backup codes offline."))
+        self.stdout.write(self.style.SUCCESS("Ordinary workspace user created. Sign in with the account email and password."))

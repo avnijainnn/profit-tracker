@@ -361,9 +361,9 @@ difference rather than force either month to equal the bank movement.
 
 ### SEC01 — Access and recovery · Proposed (essential)
 - Require login; scope reads/writes/exports to the permitted workspace.
-- Protect hosted access with **two-factor authentication**.
+- Use **email and password** for the single-user workspace (owner decision: 29 September 2026). No two-factor setup or code is required.
 - Keep privileged maintenance access **separate** from Tanvi's ordinary account.
-- Verify password recovery, backup codes, CSRF protection and login throttling.
+- Verify CSRF protection and login throttling. Password recovery is disabled for the client demo.
 - Shared staff roles need separate approval.
 
 ### OPS01 — Backup and operational recovery · Proposed (essential)

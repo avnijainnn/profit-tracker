@@ -43,8 +43,7 @@ if not DEBUG and any(not origin.startswith("https://") or "*" in origin for orig
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
-    "django_otp", "django_otp.plugins.otp_static", "django_otp.plugins.otp_totp",
-    "two_factor", "axes", "tracker",
+    "axes", "tracker",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -53,8 +52,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "django_otp.middleware.OTPMiddleware",
-    "tracker.security.RequireVerifiedSessionMiddleware",
+    "tracker.security.AuthenticatedNoCacheMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "axes.middleware.AxesMiddleware",
@@ -95,9 +93,9 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-LOGIN_URL = "two_factor:login"
+LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"
-LOGOUT_REDIRECT_URL = "two_factor:login"
+LOGOUT_REDIRECT_URL = "login"
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SECURE = not DEBUG
@@ -111,7 +109,7 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
 SECURE_HSTS_PRELOAD = False
 # Preload is optional and requires a deliberate domain-owner decision. HTTPS/HSTS
 # remain mandatory; only the suggestion to opt into the browser preload list is waived.
-# Username-only Axes lockout is deliberate: it applies across IPs, cookies and
+# Email-based Axes lockout is deliberate: it applies across IPs, cookies and
 # user agents, without trusting forwarded headers. Covered by the lockout test.
 SILENCED_SYSTEM_CHECKS = ["security.W021", "axes.W006"]
 if os.environ.get("TRUST_PROXY_HTTPS", "false").lower() == "true":
@@ -127,18 +125,15 @@ STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
-AUTHENTICATION_BACKENDS = ["axes.backends.AxesStandaloneBackend", "django.contrib.auth.backends.ModelBackend"]
+AUTHENTICATION_BACKENDS = ["axes.backends.AxesStandaloneBackend", "tracker.authentication.EmailBackend"]
 AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = timedelta(minutes=15)
 AXES_LOCKOUT_PARAMETERS = ["username"]
+AXES_USERNAME_CALLABLE = "tracker.security.login_identifier"
 AXES_RESET_ON_SUCCESS = True
-AXES_SENSITIVE_PARAMETERS = ["username", "password", "otp_token", "token"]
+AXES_SENSITIVE_PARAMETERS = ["username", "email", "password", "token"]
 AXES_LOCKOUT_TEMPLATE = "registration/locked_out.html"
 AXES_CLIENT_IP_CALLABLE = "tracker.security.no_client_ip"
-REQUIRE_2FA = not DEBUG or os.environ.get("REQUIRE_2FA", "false").lower() == "true"
-TWO_FACTOR_PATCH_ADMIN = True
-TWO_FACTOR_LOGIN_TIMEOUT = 300
-TWO_FACTOR_REMEMBER_COOKIE_AGE = None
 EMAIL_BACKEND = (
     "django.core.mail.backends.smtp.EmailBackend"
     if not DEBUG and PASSWORD_RESET_ENABLED

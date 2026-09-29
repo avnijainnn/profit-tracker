@@ -1,3 +1,5 @@
+> Auth update (29 September 2026): the owner requested email/password-only login. Two-factor authentication has been removed and demo password recovery is disabled. References to 2FA below describe the earlier review.
+
 # Requirements & Implementation Review
 
 **Prepared:** 26 September 2026 · **Scope:** read-only review of the local `profit_tracker` project.
@@ -33,7 +35,7 @@ No `AGENTS.md` exists in the project. No project file was modified during this r
 | UI | Django templates + plain CSS + small vanilla JS (same-origin `fetch` shell navigation) | `templates/`, `static/tracker/app.css`, `app.js` |
 | Local DB | SQLite (`db.sqlite3`) | `config/settings.py` |
 | Hosted DB | PostgreSQL via `dj-database-url`; refused when missing and `DEBUG=false` | `config/settings.py` |
-| Auth | Django auth + `django-two-factor-auth` + `django-axes` lockout | `requirements.in`, `config/settings.py`, `tracker/security.py` |
+| Auth | Django email/password auth + `django-axes` lockout | `requirements.in`, `config/settings.py`, `tracker/security.py` |
 | Serving | Gunicorn + WhiteNoise; health at `/healthz/` | `gunicorn.conf.py`, `tracker/views.py::health` |
 | Hosting | Render **Free web service only** (no DB provisioned); Supabase PostgreSQL supplied externally | `render.yaml`, `DEPLOYMENT.md` |
 | Backup | `pg_dump` piped into `age` encryption helper | `scripts/backup_database.py` |

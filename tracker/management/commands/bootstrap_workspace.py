@@ -30,7 +30,7 @@ class Command(BaseCommand):
             self.stdout.write("Workspace already initialized; users, passwords and data left unchanged.")
             return
         username = os.environ.get("INITIAL_OWNER_USERNAME", "").strip()
-        email = os.environ.get("INITIAL_OWNER_EMAIL", "").strip()
+        email = os.environ.get("INITIAL_OWNER_EMAIL", "").strip().casefold()
         password = os.environ.get("INITIAL_OWNER_PASSWORD", "")
         if not all((username, email, password)):
             raise CommandError("Empty database: set INITIAL_OWNER_USERNAME, INITIAL_OWNER_EMAIL and INITIAL_OWNER_PASSWORD.")
@@ -50,7 +50,7 @@ class Command(BaseCommand):
             self.seed_demo(user)
         ChangeLog.objects.create(owner=user, action="workspace_initialized", object_label="Initial workspace",
                                  details={"fictional_data": seed_demo})
-        self.stdout.write(self.style.SUCCESS("Initial workspace created. Sign in and enroll an authenticator."))
+        self.stdout.write(self.style.SUCCESS("Initial workspace created. Sign in with your account email and password."))
 
     def seed_demo(self, user):
         # Last completed month matches the app's initial review month, including

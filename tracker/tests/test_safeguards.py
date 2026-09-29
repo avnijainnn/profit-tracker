@@ -18,7 +18,7 @@ from django.core.management import call_command
 
 class SafeguardTests(TestCase):
     def setUp(self):
-        self.user = get_user_model().objects.create_user("owner", password="test-only-long-password")
+        self.user = get_user_model().objects.create_user("owner", email="owner@example.test", password="test-only-long-password")
         setup_defaults(self.user)
         self.bank = Account.objects.get(owner=self.user, name="Bank 1")
         self.category = Category.objects.get(owner=self.user, name="General")
@@ -121,12 +121,6 @@ class SafeguardTests(TestCase):
         with self.assertRaises(ValidationError):
             reverse_stock(receipt, self.user, reason="Wrong receipt", token=uuid.uuid4())
 
-    @override_settings(REQUIRE_2FA=True)
-    def test_unverified_user_redirected_before_financial_access(self):
-        response = self.client.get(reverse("dashboard"))
-        self.assertRedirects(response, reverse("two_factor:setup"), fetch_redirect_response=False)
-
-    @override_settings(REQUIRE_2FA=True)
     def test_unknown_route_is_404_not_security_middleware_500(self):
         self.assertEqual(self.client.get("/not-a-real-url/").status_code, 404)
 
@@ -169,7 +163,7 @@ class SafeguardTests(TestCase):
     @override_settings(PASSWORD_RESET_ENABLED=False)
     def test_demo_login_does_not_offer_password_reset(self):
         self.client.logout()
-        response = self.client.get(reverse("two_factor:login"))
+        response = self.client.get(reverse("login"))
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "Forgot your password?")
 
@@ -180,30 +174,14 @@ class SafeguardTests(TestCase):
         factory = RequestFactory()
         for attempt in range(5):
             authenticate(request=factory.post("/account/login/", HTTP_USER_AGENT=f"browser-{attempt}",
-                         HTTP_COOKIE=f"device={attempt}"), username="owner", password="incorrect")
-        self.assertIsNone(authenticate(request=factory.post("/account/login/"), username="owner", password="test-only-long-password"))
+                         HTTP_COOKIE=f"device={attempt}"), username="owner@example.test", password="incorrect")
+        self.assertIsNone(authenticate(request=factory.post("/account/login/"), username="owner@example.test", password="test-only-long-password"))
 
     def test_auth_pages_render(self):
         self.client.logout()
-        for route in ("two_factor:login", "password_reset", "password_reset_done", "password_reset_complete"):
+        for route in ("login", "password_reset", "password_reset_done", "password_reset_complete"):
             with self.subTest(route=route):
                 self.assertEqual(self.client.get(reverse(route)).status_code, 200)
-
-    @override_settings(REQUIRE_2FA=True)
-    def test_verified_session_can_read_workspace(self):
-        from django_otp.plugins.otp_totp.models import TOTPDevice
-        device = TOTPDevice.objects.create(user=self.user, name="default", confirmed=True)
-        session = self.client.session
-        session["otp_device_id"] = device.persistent_id
-        session.save()
-        self.assertEqual(self.client.get(reverse("dashboard")).status_code, 200)
-
-    @override_settings(REQUIRE_2FA=True)
-    def test_enrolled_unverified_user_sent_to_login(self):
-        from django_otp.plugins.otp_totp.models import TOTPDevice
-        TOTPDevice.objects.create(user=self.user, name="default", confirmed=True)
-        response = self.client.get(reverse("export_csv"))
-        self.assertRedirects(response, reverse("two_factor:login"), fetch_redirect_response=False)
 
     @override_settings(DEBUG=True)
     def test_demo_seed_success_on_empty_user(self):

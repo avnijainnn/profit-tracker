@@ -14,13 +14,17 @@ from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import connection
-from django.test import TransactionTestCase
+from django.test import TransactionTestCase, override_settings
 from PIL import Image
 
 from tracker.models import Entry, Product, StoredUpload
 
 
 @skipUnless(connection.vendor == "postgresql", "Requires an empty PostgreSQL test database")
+@override_settings(PASSWORD_HASHERS=[
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+    "django.contrib.auth.hashers.MD5PasswordHasher",
+])
 class SQLiteWorkspaceImportTests(TransactionTestCase):
     def test_transfer_preserves_records_photo_and_source_then_refuses_second_import(self):
         with TemporaryDirectory(prefix="profit-import-test-") as temporary:

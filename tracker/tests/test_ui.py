@@ -119,9 +119,10 @@ class StaticDesignTests(SimpleTestCase):
 
     def test_current_palette_and_surface_roles_are_consistent(self):
         self.assertEqual(set(re.findall(r"#[0-9a-fA-F]{6}\b", self.css)),
-                         {"#8FCA68", "#670626", "#FA7070"})
-        for declaration in ("--bg: var(--ink);", "--panel: var(--leaf);",
-                            "--text: var(--ink);", "--hover-pink: var(--coral);"):
+                         {"#F8F6EF", "#FFFFFF", "#2F7D5B", "#256447", "#4399D4", "#ED5A54",
+                          "#E27798", "#E9B949", "#202522", "#68736D", "#E5E1D8", "#EDF5F0"})
+        for declaration in ("--bg: #F8F6EF;", "--panel: #FFFFFF;",
+                            "--text: #202522;", "--hover: #EDF5F0;"):
             self.assertIn(declaration, self.css)
         definitions = set(re.findall(r"(--[\w-]+)\s*:", self.css))
         references = set(re.findall(r"var\((--[\w-]+)\)", self.css))
@@ -130,14 +131,14 @@ class StaticDesignTests(SimpleTestCase):
             self.assertNotIn(removed, self.css)
 
     def test_shared_hover_excludes_the_sku_card_link(self):
-        hover = re.search(r"/\* One hover colour.*?\*/\s*:is\((.*?)\):is\(:hover, :focus-visible\)\s*\{(.*?)\}",
+        hover = re.search(r"/\* Navigation hover.*?\*/\s*:is\((.*?)\):is\(:hover, :focus-visible\)\s*\{(.*?)\}",
                           self.css, re.S)
         self.assertIsNotNone(hover)
         selectors, declarations = hover.groups()
         self.assertIn("a:not(.product-card-link)", selectors)
         self.assertNotIn(".product-card-link", selectors.replace("a:not(.product-card-link)", ""))
-        self.assertIn("background: var(--hover-pink)", declarations)
-        for selector in ("button", ".sidebar nav a", ".entry-tabs a", "summary"):
+        self.assertIn("background: var(--hover)", declarations)
+        for selector in (".sidebar nav a", ".entry-tabs a", "summary"):
             self.assertIn(selector, selectors)
 
     def test_favicon_and_self_hosted_font_assets_are_valid(self):

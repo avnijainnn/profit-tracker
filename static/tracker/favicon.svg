@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <title>Profit Studio</title>
-  <rect x="1" y="1" width="30" height="30" rx="8" fill="#670626"/>
-  <path fill="#FF8FB5" fill-rule="evenodd" d="M9 25V7h7a7 7 0 0 1 0 14h-3v4H9Zm4-14v6h3a3 3 0 0 0 0-6h-3Z"/>
-  <circle cx="24" cy="25" r="2" fill="#8FCA68"/>
+  <rect x="1" y="1" width="30" height="30" rx="8" fill="#2F7D5B"/>
+  <path fill="#FFFFFF" fill-rule="evenodd" d="M9 25V7h7a7 7 0 0 1 0 14h-3v4H9Zm4-14v6h3a3 3 0 0 0 0-6h-3Z"/>
+  <circle cx="24" cy="25" r="2" fill="#E27798"/>
 </svg>

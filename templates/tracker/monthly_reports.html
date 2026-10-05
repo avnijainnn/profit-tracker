@@ -3,6 +3,6 @@
 {% block content %}
 <header class="page-header"><h1>Monthly reports</h1><form method="get" class="month-picker"><label for="year">Year</label><input id="year" name="year" type="number" min="1900" max="9998" value="{{ year }}" required><button class="btn btn-light" type="submit">View</button></form></header>
 <section class="panel"><div class="table-wrap"><table><thead><tr><th>Month</th><th class="number">Money received</th><th class="number">Expenses</th><th class="number">Profit</th></tr></thead><tbody>
-{% for row in rows %}<tr><td><a href="{% url 'dashboard' %}?month={{ row.month }}">{{ row.label }} {{ year }}</a></td><td class="number">{{ row.totals.income|money }}</td><td class="number">{{ row.totals.expense|money }}</td><td class="number">{{ row.totals.result|money }}</td></tr>{% endfor %}
-</tbody><tfoot><tr><th>Year total</th><th class="number">{{ year_totals.income|money }}</th><th class="number">{{ year_totals.expense|money }}</th><th class="number">{{ year_totals.result|money }}</th></tr></tfoot></table></div></section>
+{% for row in rows %}<tr><td><a href="{% url 'dashboard' %}?month={{ row.month }}">{{ row.label }} {{ year }}</a></td><td class="number income">{{ row.totals.income|money }}</td><td class="number expense">{{ row.totals.expense|money }}</td><td class="number {% if row.totals.result < 0 %}negative{% else %}income{% endif %}">{{ row.totals.result|money }}</td></tr>{% endfor %}
+</tbody><tfoot><tr><th>Year total</th><th class="number income">{{ year_totals.income|money }}</th><th class="number expense">{{ year_totals.expense|money }}</th><th class="number {% if year_totals.result < 0 %}negative{% else %}income{% endif %}">{{ year_totals.result|money }}</th></tr></tfoot></table></div></section>
 {% endblock %}

@@ -3,15 +3,15 @@
 {% block content %}
 <header class="page-header"><h1>{{ month_label }}</h1>{% include 'tracker/month_picker.html' %}</header>
 {% if not has_accounts %}<div class="notice">Add your payment accounts in <a href="{% url 'settings' %}">Settings</a>.</div>{% endif %}
-{% if review.closed_at %}<div class="notice">This month is closed. <a href="{% url 'month_review' %}?month={{ month }}">Reopen month</a></div>{% endif %}
+{% if review.closed_at %}<div class="notice warning">This month is closed. <a href="{% url 'month_review' %}?month={{ month }}">Reopen month</a></div>{% endif %}
 <section class="stat-grid summary-grid" aria-label="Monthly totals">
-<article class="stat-card"><span class="stat-label">Money received</span><h2>{{ totals.income|money }}</h2></article>
-<article class="stat-card"><span class="stat-label">Expenses</span><h2>{{ totals.expense|money }}</h2></article>
-<article class="stat-card"><span class="stat-label">Profit</span><h2>{{ totals.result|money }}</h2></article>
+<article class="stat-card income"><span class="stat-label">Money received</span><h2>{{ totals.income|money }}</h2></article>
+<article class="stat-card expense"><span class="stat-label">Expenses</span><h2>{{ totals.expense|money }}</h2></article>
+<article class="stat-card profit{% if totals.result < 0 %} negative{% endif %}"><span class="stat-label">Profit</span><h2>{{ totals.result|money }}</h2></article>
 </section>
 <div class="button-row spaced">
 <a class="btn btn-primary" href="{% url 'entry_add' 'income' %}?month={{ month }}">＋ Money received</a>
-<a class="btn btn-light" href="{% url 'entry_add' 'expense' %}?month={{ month }}">＋ Expense</a>
+<a class="btn btn-light expense-action" href="{% url 'entry_add' 'expense' %}?month={{ month }}">＋ Expense</a>
 <a class="btn btn-plain" href="{% url 'export_csv' %}?month={{ month }}">Export month CSV</a>
 {% if not review.closed_at %}<a class="btn btn-plain" href="{% url 'month_review' %}?month={{ month }}">Close month</a>{% endif %}
 </div>

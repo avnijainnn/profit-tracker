@@ -2,7 +2,7 @@
 {% block content %}
 <header class="page-header"><h1>Products & stock</h1><a class="btn btn-primary" href="{% url 'product_add' %}?month={{ month }}">＋ Add SKU</a></header>
 <div class="product-grid">{% for row in rows %}
-<article class="product-card">
+<article class="product-card{% if row.product.kind == 'thrift' %} resale{% endif %}">
 <a class="product-card-link" href="{% url 'product_detail' row.product.pk %}?month={{ month }}">
 <div class="product-identity">{% if row.product.photo %}<img class="product-photo" src="{% url 'product_photo' row.product.pk %}" alt="" loading="lazy">{% else %}<span class="product-photo photo-placeholder" aria-hidden="true">▧</span>{% endif %}<div><h2>{{ row.product.name }}</h2><span class="muted">{{ row.product.sku }}</span></div></div>
 <div class="product-bottom"><span>{{ row.available }} units available</span><span aria-hidden="true">↗</span></div>

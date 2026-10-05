@@ -266,17 +266,18 @@ class BrowserWorkflows(StaticLiveServerTestCase):
     def test_theme_button_tab_and_sku_hover_behaviour(self):
         self.go("/?month=2025-09")
         self.assertEqual(self.page.locator("body").evaluate("el => getComputedStyle(el).backgroundColor"),
-                         "rgb(103, 6, 38)")
+                         "rgb(248, 246, 239)")
         for card in self.page.locator(".stat-card").all():
-            self.assertEqual(card.evaluate("el => getComputedStyle(el).backgroundColor"), "rgb(143, 202, 104)")
-            self.assertEqual(card.evaluate("el => getComputedStyle(el).color"), "rgb(103, 6, 38)")
+            self.assertEqual(card.evaluate("el => getComputedStyle(el).backgroundColor"), "rgb(255, 255, 255)")
+            self.assertEqual(card.evaluate("el => getComputedStyle(el).color"), "rgb(32, 37, 34)")
         for name in ("Money received", "Expense"):
             button = self.page.get_by_role("link", name=re.compile(r"＋ " + name + r"$"))
             button.hover()
-            self.assertEqual(button.evaluate("el => getComputedStyle(el).backgroundColor"), "rgb(250, 112, 112)")
+            expected = "rgb(237, 90, 84)" if name == "Expense" else "rgb(37, 100, 71)"
+            self.assertEqual(button.evaluate("el => getComputedStyle(el).backgroundColor"), expected)
         tab = self.page.locator(".entry-tabs a").first
         tab.hover()
-        self.assertEqual(tab.evaluate("el => getComputedStyle(el).backgroundColor"), "rgb(250, 112, 112)")
+        self.assertEqual(tab.evaluate("el => getComputedStyle(el).backgroundColor"), "rgb(237, 245, 240)")
         favicon = self.page.locator('link[rel="icon"]').get_attribute("href")
         response = self.context.request.get(self.live_server_url + favicon)
         self.assertEqual(response.status, 200)
@@ -287,10 +288,10 @@ class BrowserWorkflows(StaticLiveServerTestCase):
         link.hover()
         self.assertEqual(link.evaluate("el => getComputedStyle(el).backgroundColor"), original)
         self.assertEqual(self.page.locator(".product-card").first.evaluate("el => getComputedStyle(el).backgroundColor"),
-                         "rgb(143, 202, 104)")
+                         "rgb(255, 255, 255)")
         delete = self.page.locator(".product-card .danger-link").first
         delete.hover()
-        self.assertEqual(delete.evaluate("el => getComputedStyle(el).backgroundColor"), "rgb(250, 112, 112)")
+        self.assertEqual(delete.evaluate("el => getComputedStyle(el).backgroundColor"), "rgb(237, 90, 84)")
 
     def test_compact_delete_modal_preserves_page_cancel_and_failed_retry(self):
         self.money_form("expense", "73.45")

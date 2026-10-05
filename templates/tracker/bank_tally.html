@@ -14,12 +14,12 @@
         {% for row in rows %}
         <tr>
           <td>{{ row.account.name }}</td>
-          <td class="number">{{ row.received|money }}</td>
-          <td class="number">{{ row.expenses|money }}</td>
+          <td class="number income">{{ row.received|money }}</td>
+          <td class="number expense">{{ row.expenses|money }}</td>
         </tr>
         {% endfor %}
       </tbody>
-      <tfoot><tr><th scope="row">Total</th><td class="number">{{ totals.received|money }}</td><td class="number">{{ totals.expenses|money }}</td></tr></tfoot>
+      <tfoot><tr><th scope="row">Total</th><td class="number income">{{ totals.received|money }}</td><td class="number expense">{{ totals.expenses|money }}</td></tr></tfoot>
     </table>
   </div>
 </section>

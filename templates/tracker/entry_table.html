@@ -6,6 +6,6 @@
 <td><span class="badge {{ entry.kind }}">{{ entry.get_kind_display }}</span></td>
 <td>{{ entry.account }}{% if entry.paid_by %}<small>{{ entry.paid_by }}</small>{% endif %}</td>
 <td>{% if entry.category %}{{ entry.category }}{% elif entry.source %}{{ entry.get_source_display }}{% else %}{{ entry.notes|truncatechars:45 }}{% endif %}{% if entry.product %}<small>{{ entry.product.name }}</small>{% endif %}{% if entry.reference %}<small>{{ entry.reference }}</small>{% endif %}</td>
-<td class="number"><strong>{{ entry.amount|money }}</strong></td></tr>
+<td class="number {{ entry.kind }}"><strong>{{ entry.amount|money }}</strong></td></tr>
 {% empty %}<tr><td colspan="6" class="empty">No entries</td></tr>{% endfor %}
 </tbody></table></div>

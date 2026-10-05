@@ -124,7 +124,8 @@ SESSION_COOKIE_NAME = "__Host-profit_session" if not DEBUG else "profit_session"
 CSRF_COOKIE_NAME = "__Host-profit_csrf" if not DEBUG else "profit_csrf"
 DATA_UPLOAD_MAX_MEMORY_SIZE = 1024 * 1024
 STORAGES = {
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage" if DEBUG
+                else "tracker.storage.DatabaseStorage"},
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
 AUTHENTICATION_BACKENDS = ["axes.backends.AxesStandaloneBackend", "tracker.authentication.EmailBackend"]

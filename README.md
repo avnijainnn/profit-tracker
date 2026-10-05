@@ -2,7 +2,7 @@
 
 An editable **Python / Django** project. Open this folder in VS Code, change ordinary Python, HTML, and CSS files, and run the website locally. There is no dependency on a chat session, proprietary website builder, or JavaScript build service.
 
-**Status: production safeguards added; launch verification still required.** This is not a deployed or certified production system. Start with local fictional data. The free Render Blueprint uses Neon PostgreSQL and disables password reset in demo mode, so no mail service is required for the client preview. Follow `DEPLOYMENT.md` to create the fictional client workspace. `VERIFICATION.md` records the checks completed.
+**Status: production safeguards added; live deployment still requires account setup and verification.** The free Render Blueprint is configured for one real owner with an empty Neon PostgreSQL database. It disables password reset until a mail provider is configured. Follow `DEPLOYMENT.md` for setup. `VERIFICATION.md` records checks completed before this deployment change.
 
 The client UI uses three monthly totals: **Money received, Expenses, and Profit**. Profit is money received minus expenses, using actual receipt/payment dates. Stock receipts and unit sales are tracked separately from payments. Earlier technical notes describe legacy lot-cost calculations retained for historical records.
 
@@ -18,7 +18,7 @@ The client UI uses three monthly totals: **Money received, Expenses, and Profit*
 - Quick repeated entry with **Save & add another**; input can happen next month without changing the transaction month.
 - Persistent custom payment accounts and expense categories, managed in Settings.
 - Separate transfers/repayments, excluded from income and expenses.
-- Products/SKUs with optional photos beside their names.
+- Products/SKUs with optional photos beside their names. Production photos are stored in PostgreSQL and count toward its storage limit.
 - Simple stock receipt and units-sold forms, with date, quantity, and optional batch/notes.
 - One stock history table and payment-month expenses on each SKU page; refunds/damage costs are entered as ordinary expenses.
 - Negative-stock validation, including backdated movements.
@@ -29,8 +29,8 @@ The client UI uses three monthly totals: **Money received, Expenses, and Profit*
 - Active statement references are unique per account; stale financial edits cannot overwrite a newer change.
 - Month review/closing, reasoned reopening, and snapshots; stock backdating cannot alter a later closed month.
 - Stock reversals preserve the original record and correct both available stock and sold-unit statistics.
-- Email/password login and login throttling. Password recovery is disabled for the client demo; no email provider or authenticator is required.
-- PostgreSQL/Gunicorn/WhiteNoise configuration, a Render Starter web-service template for use with separately configured Supabase PostgreSQL, a PostgreSQL CI workflow, and an encrypted-backup helper. Cloud saving is not active until those services are provisioned and `DATABASE_URL` is configured.
+- Email/password login and login throttling. Password recovery is disabled in the free deployment until an email provider is configured.
+- PostgreSQL/Gunicorn/WhiteNoise configuration, a Render Free web-service Blueprint for use with separately configured Neon PostgreSQL, a PostgreSQL CI workflow, and an encrypted-backup helper. Cloud saving is not active until those services are provisioned and `DATABASE_URL` is configured.
 
 ## 1. Open it in VS Code
 
@@ -163,7 +163,7 @@ Money, stock, and month-closing changes are serialized with PostgreSQL row locks
 
 Historical lot costs, statement tallies, transfer/withdrawal entries, and audit records remain in the database. The current screens do not request those extra inputs or calculate hidden FIFO/operating-profit panels. Retaining historical tables prevents destructive changes to existing records.
 
-The app does not connect to a bank, import settlements, calculate live balances, or generate statutory accounts. Hosting, SMTP delivery, persistent photo storage, backups, and PostgreSQL verification still require their own configured environments.
+The app does not connect to a bank, import settlements, calculate live balances, or generate statutory accounts. Hosting, SMTP delivery, backups, and PostgreSQL verification still require their own configured environments. Production photos use the PostgreSQL database.
 
 ## Local verification
 
@@ -199,9 +199,9 @@ The `.gitignore` excludes the database, virtualenv, local secret, and environmen
 
 This folder is **not deployed**. Do not expose `runserver` to the internet.
 
-Read **`DEPLOYMENT.md`** in order. It covers locking dependencies, PostgreSQL CI, a separate staging deployment, email/password sign-in verification, backup restoration, and a controlled first-month pilot. `render.yaml` defines a Render Free web service only; it does not create Supabase resources or a database. No account, database, server, domain, monitoring subscription, or paid service has been created by this handoff.
+Read **`DEPLOYMENT.md`** in order. It covers the single-owner production setup, database connection, sign-in verification, backups, and photo storage budget. `render.yaml` defines a Render Free web service only; it does not create the Neon database. No hosted service has been created by this repository alone.
 
-Production settings reject missing secrets, hosts, origins, PostgreSQL, or email setup. The build also rejects a missing **`requirements.lock`**. This lockfile must be resolved on a network-enabled development machine, tested, audited, and committed; it has not been fabricated here. Do not bypass these checks to make a deployment appear successful.
+Production settings reject missing secrets, hosts, origins, or PostgreSQL. Email setup is required if password recovery is enabled. The build also rejects a missing **`requirements.lock`**. Do not bypass these checks to make a deployment appear successful.
 
 Useful official references:
 

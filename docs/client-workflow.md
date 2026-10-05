@@ -14,4 +14,4 @@
 
 Add, replace, or remove a JPG, PNG, or WebP photo in the SKU form. Uploads are optional, limited to 5 MB and 16 million pixels, and saved as normalized JPEG thumbnails. Photos are served only to the logged-in workspace owner.
 
-Local uploads are stored in `media/`, which is excluded from Git. Set `PRODUCT_MEDIA_ROOT` to persistent storage when hosting the app; an ephemeral web-service disk will lose uploads on restart. Back up this directory alongside the database.
+Local uploads are stored in `media/`, which is excluded from Git; back up this directory alongside the local database. In production, photos are stored with records in PostgreSQL, so a database backup includes them and Render restarts do not remove them.

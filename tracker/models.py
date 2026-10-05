@@ -83,6 +83,13 @@ class Product(OwnedModel):
         return f"{self.name} · {self.sku}"
 
 
+class StoredUpload(models.Model):
+    """Small private uploads stored with the records on hosts without durable disks."""
+
+    path = models.CharField(max_length=255, primary_key=True)
+    data = models.BinaryField()
+
+
 class Entry(OwnedModel):
     class Kind(models.TextChoices):
         INCOME = "income", "Money received"

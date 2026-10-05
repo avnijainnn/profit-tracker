@@ -1,78 +1,81 @@
-# Free Render client demo
+# Single-owner production deployment (Render Free + Neon Free)
 
-This blueprint costs **$0 within provider free-tier limits**. It creates only a
-Render web service; it does not create a database or send credentials anywhere.
-The workspace remains separate from this machine's SQLite database.
+The free hosting alternatives and their tradeoffs are recorded in
+[hosting-options.md](docs/hosting-options.md).
 
-## Accounts to create
+This repository deploys the existing Django application. The Render Blueprint creates
+one free web service; create the Neon Free PostgreSQL database separately. No paid
+subscription or additional storage service is required. Stay within both providers'
+free limits. The live workspace starts empty and creates one ordinary owner account.
+It does not import the local `db.sqlite3` file.
 
-- A GitHub account/repository for this project. Put the contents of
-  `profit_tracker-client-demo-source.zip` in the repository root. The enclosing
-  Downloads folder is a separate workspace: never upload it. Add `render.yaml`,
-  `requirements.lock`, and `start.sh`. Keep `.venv`, `.env`, `.local-secret`,
-  database files and backups out of Git.
-- A free Neon PostgreSQL project. Copy its **direct connection string** (not a
-  transaction-pooler URL); migrations need a session-level advisory lock.
-  Leave Neon SSL enabled.
-- A mail provider is not needed for the client demo. Password reset is disabled
-  in demo mode, and the owner signs in with their account email and password.
-  For a real workspace, enable password reset and configure a transactional
-  email provider before switching out of demo mode.
+## Before deployment
 
-## Render setup
+1. Keep `.env`, `.local-secret`, `db.sqlite3`, `media/`, and backups out of Git.
+2. Push this repository, including `render.yaml`, `requirements.lock`, `build.sh`,
+   and `start.sh`, to GitHub.
+3. Run the project tests and verify the production configuration. Treat a failed
+   check or migration as a deployment blocker.
+4. Decide whether records in the local SQLite database must be migrated. Do not
+   enter live records in a new empty database and then overwrite it with a later
+   import.
 
-1. Create a free Render web service from this GitHub repo using `render.yaml`.
-   The blueprint leaves auto-deploy off. Review the deploy, then enable it once
-   setup succeeds. Render supplies an HTTPS `*.onrender.com` address; Django
-   reads the matching host and CSRF origin automatically.
-2. At first setup, enter these secret values when Render prompts for them:
-   - `DJANGO_SECRET_KEY`: generate locally with
-     `python -c "import secrets; print(secrets.token_urlsafe(64))"`.
-   - `DATABASE_URL`: direct Neon connection string (contains its password).
-   - `INITIAL_OWNER_EMAIL`: the owner account's sign-in email (no email is sent
-     while password reset remains disabled).
-   The blueprint generates a separate random password for `client-demo`.
-   Copy it from this private Render environment into your password manager.
-   **Do not commit secrets or paste credentials into chat.**
-3. Create the service. `start.sh` runs `prepare_deploy`: it applies migrations,
-   initializes the first regular (non-admin) user, and adds a fictional tote
-   walkthrough to the empty Neon database. Subsequent starts see the existing
-   account and leave its password, demo entries and database alone. It never
-   prints the password. Sign in with `INITIAL_OWNER_EMAIL` and the password you
-   configured. `INITIAL_OWNER_USERNAME` is only an internal/display identifier;
-   no authenticator setup or code is required. Existing accounts retain their
-   email, password and saved records after this update.
-4. Password reset is disabled for the demo. Keep the demo login in a password
-   manager and share it with the client through a private channel.
-5. Open the URL once before the meeting. A free Render service sleeps after
-   15 minutes without traffic; the next request can take about a minute to wake.
-   Neon also has per-project compute and storage limits. Monitor both free plans.
+## Create the free database
 
-## Five-minute walkthrough
+Create a Neon Free PostgreSQL project. Copy its **direct** connection string into
+Render's private `DATABASE_URL` environment variable. Use the direct URL because
+`prepare_deploy` takes a PostgreSQL session advisory lock during migration. Keep
+SSL enabled. Do not commit or paste the URL into a public issue or chat.
 
-The fictional sample is seeded in the last completed month (August 2026 when
-first created in September 2026). It receives 10 bags for Rs 5,000 manufacturing
-and Rs 500 shipping, sells four, records Rs 4,000 sales revenue, pays Rs 300
-operating expense and transfers Rs 200 to the CRED wallet.
+Neon stores records and product photos. Monitor its storage and compute allowances;
+photos count toward the free database storage limit.
+Create independent database backups and test a restore before relying on the
+service for financial records. The app's CSV export is not a full backup.
 
-The sale month should show Rs 2,200 FIFO COGS and Rs 1,500 Operating Profit.
-Cash Profit in that month is minus Rs 5,800. The Rs 4,000 cash settlement lands
-in the following month. Six bags remain in the lot. The transfer affects the
-wallet check, not profit. Use the month picker to view both months, then inspect
-the lot, payment checks, CSV and month close/reopen.
+## Deploy the web service
 
-This sample uses invented data. Do not enter client financial data into a free
-preview or rely on it for bookkeeping. Render Free services can sleep and have
-an ephemeral filesystem, so Neon is the durable store. Free-plan availability,
-limits and provider terms can change; read each account's current dashboard.
+1. In Render, create a Blueprint from this GitHub repository. Review `render.yaml`
+   and select the Free web service plan. Auto deploy is initially off. Avoid adding
+   a payment method if you want Render to suspend service instead of billing when
+   a free allowance is exhausted.
+2. Supply the private values Render requests:
+   - `DJANGO_SECRET_KEY`: a random value of at least 50 characters. Generate one
+     locally with `python -c "import secrets; print(secrets.token_urlsafe(64))"`.
+   - `DATABASE_URL`: the Neon direct PostgreSQL connection string.
+   - `INITIAL_OWNER_EMAIL`: the one user's sign-in email address.
+3. Render generates `INITIAL_OWNER_PASSWORD`. Save the generated password in a
+   password manager before using the site. Do not send it through chat or Git.
+4. Create the service. On first startup, `prepare_deploy` migrates the database
+   and creates the owner account and default accounts/categories. It does not
+   add fictional transactions because `APP_ENV=production` and
+   `DEMO_SEED_DATA=false`. Later restarts preserve the account and its records.
+5. Visit the Render HTTPS URL and sign in with `INITIAL_OWNER_EMAIL` and the
+   generated password. Check the dashboard, add and edit a small test entry,
+   check its report, then remove the test entry before entering real data.
 
-## If initialization needs retrying
+The free service sleeps after 15 minutes without traffic, so the next visit may
+take about a minute to load. Render's local filesystem is temporary: do not use
+its local files for a SQLite database or backups.
 
-`prepare_deploy` is safe to rerun. If the first account was partially set up,
-the transaction rolls back. If an existing user or demo workspace is present,
-startup never resets it. Do not delete the Neon database to reset a password;
-use the normal recovery link after verifying SMTP.
+## Product photos and account recovery
 
-The full management tracking design still has unfinished staff roles, salaries,
-borrowing balances and subcategory management. See
-`docs/technical-design-progress.md` before promising those features.
+Product photos use the PostgreSQL database in production, so they survive Render
+restarts, sleep, and redeploys. Photos remain available only through the app's
+authenticated endpoint. Locally, Django keeps using the `media/` folder. Local
+photos and records are not copied to the new empty Neon database.
+
+Password reset is disabled in the free Blueprint because no mail provider is
+configured. Keep the owner's password in a password manager. To enable email
+recovery later, configure a supported transactional email provider, set
+`ENABLE_PASSWORD_RESET=true`, and verify delivery before relying on it.
+
+## Verification and rollback
+
+Check Render deploy logs for successful dependency installation, static collection,
+migrations, and account initialization. Confirm the `/healthz/` endpoint and sign
+in over HTTPS. Back up the database before updates. If an update fails, restore
+the previous code version and investigate the migration before retrying. Do not
+delete the Neon project to reset a password or repair a failed deployment.
+
+Provider free plans and limits can change. Check the current Render and Neon
+dashboards before deployment and during use.

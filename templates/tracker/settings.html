@@ -1,5 +1,6 @@
 {% extends 'tracker/base.html' %}
 {% block content %}<header class="page-header"><h1>Accounts & categories</h1></header>
+<p><a href="{% url 'account_credentials' %}">Change sign-in email or password</a></p>
 <div class="two-col"><section class="panel"><div class="panel-heading"><h2>Payment accounts</h2></div>{% for account in accounts %}<div class="breakdown-row"><span>{{ account.name }}</span><span class="muted">{{ account.get_kind_display }}</span></div>{% empty %}<p class="empty">No payment accounts.</p>{% endfor %}<form method="post" class="inset-form">{% csrf_token %}{% include 'tracker/fields.html' with form=account_form %}<button class="btn btn-primary" name="action" value="account">Add account</button></form></section>
 <section class="panel"><div class="panel-heading"><h2>Expense categories</h2></div><div class="category-chips">{% for category in categories %}<span class="pill">{{ category.name }}</span>{% empty %}<p class="muted">Your saved categories will appear here.</p>{% endfor %}</div><form method="post" class="inset-form">{% csrf_token %}{% include 'tracker/fields.html' with form=category_form %}<button class="btn btn-primary" name="action" value="category">Add category</button></form></section></div>
 {% endblock %}

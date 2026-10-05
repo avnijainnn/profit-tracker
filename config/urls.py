@@ -5,12 +5,14 @@ from django.views.generic import RedirectView
 from tracker.authentication import EmailAuthenticationForm, EmailAdminAuthenticationForm
 from tracker.auth_views import ThrottledPasswordResetView, require_password_reset_enabled
 from tracker.owner_setup import owner_setup
+from tracker.account_credentials import account_credentials
 
 admin.site.login_form = EmailAdminAuthenticationForm
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("setup/", owner_setup, name="owner_setup"),
+    path("account/details/", account_credentials, name="account_credentials"),
     path("login/", auth_views.LoginView.as_view(authentication_form=EmailAuthenticationForm), name="login"),
     path("account/login/", RedirectView.as_view(pattern_name="login", query_string=True, permanent=False)),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),

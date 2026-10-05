@@ -56,6 +56,9 @@ service for financial records. The app's CSV export is not a full backup.
    and password; the app creates the sole owner account and signs her in.
    The link stops working once that account exists. There is no public signup.
    Afterward, remove `INITIAL_OWNER_SETUP_TOKEN` from Render if desired.
+   If the owner later needs a different sign-in email or password, she signs in
+   with her current credentials and uses **Settings → Change sign-in email or
+   password**. Her records stay in the same workspace.
 5. Ask the client to check the dashboard, add and edit a small test entry,
    check its report, then remove the test entry before entering real data.
 

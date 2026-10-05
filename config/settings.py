@@ -11,6 +11,7 @@ DEMO_MODE = os.environ.get("APP_ENV") == "demo"
 PASSWORD_RESET_ENABLED = os.environ.get(
     "ENABLE_PASSWORD_RESET", "false" if DEMO_MODE else "true"
 ).lower() == "true"
+INITIAL_OWNER_SETUP_TOKEN = os.environ.get("INITIAL_OWNER_SETUP_TOKEN", "").strip()
 DEPLOYED = bool(os.environ.get("RENDER")) or os.environ.get("APP_ENV") in ("production", "staging", "demo")
 if DEPLOYED and DEBUG:
     raise RuntimeError("Hosted environments require DJANGO_DEBUG=false")

@@ -6,7 +6,8 @@ The free hosting alternatives and their tradeoffs are recorded in
 This repository deploys the existing Django application. The Render Blueprint creates
 one free web service; create the Neon Free PostgreSQL database separately. No paid
 subscription or additional storage service is required. Stay within both providers'
-free limits. The live workspace starts empty and creates one ordinary owner account.
+free limits. The live workspace starts empty. Its intended owner creates the only
+login through a private, one-time setup link.
 It does not import the local `db.sqlite3` file.
 
 ## Before deployment
@@ -42,15 +43,20 @@ service for financial records. The app's CSV export is not a full backup.
    - `DJANGO_SECRET_KEY`: a random value of at least 50 characters. Generate one
      locally with `python -c "import secrets; print(secrets.token_urlsafe(64))"`.
    - `DATABASE_URL`: the Neon direct PostgreSQL connection string.
-   - `INITIAL_OWNER_EMAIL`: the one user's sign-in email address.
-3. Render generates `INITIAL_OWNER_PASSWORD`. Save the generated password in a
-   password manager before using the site. Do not send it through chat or Git.
-4. Create the service. On first startup, `prepare_deploy` migrates the database
-   and creates the owner account and default accounts/categories. It does not
+   - `INITIAL_OWNER_SETUP_TOKEN`: generate a random token locally with
+     `python -c "import secrets; print(secrets.token_urlsafe(32))"` and paste it
+     into Render. Save it privately until the owner finishes setup.
+3. Create the service. On first startup, `prepare_deploy` migrates the empty
+   database and waits for the owner to use the private setup link. It does not
    add fictional transactions because `APP_ENV=production` and
-   `DEMO_SEED_DATA=false`. Later restarts preserve the account and its records.
-5. Visit the Render HTTPS URL and sign in with `INITIAL_OWNER_EMAIL` and the
-   generated password. Check the dashboard, add and edit a small test entry,
+   `DEMO_SEED_DATA=false`.
+4. When Render shows the HTTPS URL, send the client a private link in this form:
+   `https://YOUR-SERVICE.onrender.com/setup/?token=YOUR-SETUP-TOKEN`.
+   Share it only with her, through a private channel. She enters her own email
+   and password; the app creates the sole owner account and signs her in.
+   The link stops working once that account exists. There is no public signup.
+   Afterward, remove `INITIAL_OWNER_SETUP_TOKEN` from Render if desired.
+5. Ask the client to check the dashboard, add and edit a small test entry,
    check its report, then remove the test entry before entering real data.
 
 The free service sleeps after 15 minutes without traffic, so the next visit may
@@ -65,7 +71,7 @@ authenticated endpoint. Locally, Django keeps using the `media/` folder. Local
 photos and records are not copied to the new empty Neon database.
 
 Password reset is disabled in the free Blueprint because no mail provider is
-configured. Keep the owner's password in a password manager. To enable email
+configured. The client should keep her password in a password manager. To enable email
 recovery later, configure a supported transactional email provider, set
 `ENABLE_PASSWORD_RESET=true`, and verify delivery before relying on it.
 

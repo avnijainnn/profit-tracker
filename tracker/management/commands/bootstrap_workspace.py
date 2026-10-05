@@ -29,6 +29,14 @@ class Command(BaseCommand):
         if User.objects.exists():
             self.stdout.write("Workspace already initialized; users, passwords and data left unchanged.")
             return
+        setup_token = settings.INITIAL_OWNER_SETUP_TOKEN
+        if setup_token:
+            if len(setup_token) < 32:
+                raise CommandError("INITIAL_OWNER_SETUP_TOKEN must contain at least 32 characters.")
+            if os.environ.get("DEMO_SEED_DATA", "false").lower() == "true":
+                raise CommandError("One-time owner setup cannot seed demo data.")
+            self.stdout.write("Database ready for the private one-time owner setup link.")
+            return
         username = os.environ.get("INITIAL_OWNER_USERNAME", "").strip()
         email = os.environ.get("INITIAL_OWNER_EMAIL", "").strip().casefold()
         password = os.environ.get("INITIAL_OWNER_PASSWORD", "")

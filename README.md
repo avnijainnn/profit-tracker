@@ -2,7 +2,7 @@
 
 An editable **Python / Django** project. Open this folder in VS Code, change ordinary Python, HTML, and CSS files, and run the website locally. There is no dependency on a chat session, proprietary website builder, or JavaScript build service.
 
-**Status: production safeguards added; live deployment still requires account setup and verification.** The free Render Blueprint is configured for one real owner with an empty Neon PostgreSQL database. It disables password reset until a mail provider is configured. Follow `DEPLOYMENT.md` for setup. `VERIFICATION.md` records checks completed before this deployment change.
+**Status: production safeguards added; live deployment still requires account setup and verification.** The free Render Blueprint is configured for one real owner with an empty Neon PostgreSQL database. The client creates her own login through a private, one-time setup link. Public signup is closed. Password reset is disabled until a mail provider is configured. Follow `DEPLOYMENT.md` for setup. `VERIFICATION.md` records checks completed before this deployment change.
 
 The client UI uses three monthly totals: **Money received, Expenses, and Profit**. Profit is money received minus expenses, using actual receipt/payment dates. Stock receipts and unit sales are tracked separately from payments. Earlier technical notes describe legacy lot-cost calculations retained for historical records.
 

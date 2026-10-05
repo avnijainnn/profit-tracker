@@ -1,0 +1,16 @@
+{% extends 'tracker/base.html' %}
+{% block content %}
+<section class="login-card signin-card">
+  <div class="brand"><span class="brand-mark">p.</span><span>profit studio</span></div>
+  <h1>Create your account</h1>
+  <p>This private setup link works once. Choose the email and password you will use to sign in.</p>
+  <form method="post">
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="notice error" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="field">{{ form.email.label_tag }}{{ form.email }}{{ form.email.errors }}</div>
+    <div class="field">{{ form.password1.label_tag }}{{ form.password1 }}{{ form.password1.errors }}</div>
+    <div class="field">{{ form.password2.label_tag }}{{ form.password2 }}{{ form.password2.errors }}</div>
+    <button class="btn btn-primary wide" type="submit">Create account</button>
+  </form>
+</section>
+{% endblock %}

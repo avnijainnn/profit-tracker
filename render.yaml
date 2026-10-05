@@ -32,9 +32,7 @@ services:
         value: "false"
       - key: INITIAL_OWNER_USERNAME
         value: owner
-      - key: INITIAL_OWNER_EMAIL
+      - key: INITIAL_OWNER_SETUP_TOKEN
         sync: false
-      - key: INITIAL_OWNER_PASSWORD
-        generateValue: true
       - key: DEMO_SEED_DATA
         value: "false"

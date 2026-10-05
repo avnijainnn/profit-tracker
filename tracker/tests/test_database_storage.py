@@ -36,7 +36,7 @@ class DatabaseStorageTests(TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(b"".join(response.streaming_content), payload)
-        response.close()
+        self.assertTrue(response.closed)
 
         product.photo.delete(save=True)
         self.assertFalse(DatabaseStorage().exists(name))

@@ -85,7 +85,8 @@ data. It never edits the local source or the private backup.
    enter data in Neon or rerun against a nonempty target; inspect the error first.
    Once the old user is imported, the private setup link is disabled automatically.
    The client signs in with her **existing** email and password, then uses
-   **Settings → Change sign-in email or password** if she wants new credentials.
+   **Settings → Change username, sign-in email, or password** if she wants new
+   credentials. Sign-in continues to use the email address.
 
 Do not send the client the live URL before this transfer and the read-only checks
 below are complete.

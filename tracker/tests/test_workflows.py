@@ -186,7 +186,7 @@ class WorkflowTests(TestCase):
     def test_shared_shell_uses_light_color_scheme_and_versioned_stylesheet(self):
         response = self.client.get(reverse("dashboard"))
         self.assertContains(response, '<meta name="color-scheme" content="light">')
-        self.assertRegex(response.content.decode(), r"tracker/app\.css\?v=\d+")
+        self.assertRegex(response.content.decode(), r"tracker/app(?:\.[0-9a-f]+)?\.css\?v=\d+")
 
     def test_dashboard_tabs_and_search_filter_monthly_entries(self):
         self.client.post(reverse("entry_add", args=["income"]), {

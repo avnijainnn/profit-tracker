@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.core.exceptions import ValidationError
 from django.db import connection, transaction
 from django.shortcuts import redirect, render
@@ -15,6 +16,9 @@ from .models import ChangeLog
 
 
 class LoginDetailsForm(forms.Form):
+    username = forms.CharField(max_length=150, validators=[UnicodeUsernameValidator()],
+                               help_text="Shown in the app. Sign in still uses your email.",
+                               widget=forms.TextInput(attrs={"class": "form-control"}))
     email = forms.EmailField(label="Sign-in email", widget=forms.EmailInput(attrs={
         "class": "form-control", "autocomplete": "email"
     }))
@@ -32,8 +36,14 @@ class LoginDetailsForm(forms.Form):
 
     def __init__(self, *args, user, **kwargs):
         self.user = user
-        kwargs.setdefault("initial", {"email": user.email})
+        kwargs.setdefault("initial", {"username": user.username, "email": user.email})
         super().__init__(*args, **kwargs)
+
+    def clean_username(self):
+        username = self.cleaned_data["username"].strip()
+        if get_user_model().objects.filter(username__iexact=username).exclude(pk=self.user.pk).exists():
+            raise forms.ValidationError("This username is already used by another account.")
+        return username
 
     def clean_email(self):
         email = self.cleaned_data["email"].strip().casefold()
@@ -54,14 +64,16 @@ class LoginDetailsForm(forms.Form):
         if first != second:
             self.add_error("new_password2", "New passwords do not match.")
         elif first:
-            candidate = get_user_model()(username=self.user.username,
+            candidate = get_user_model()(username=cleaned.get("username") or self.user.username,
                                          email=cleaned.get("email") or self.user.email)
             try:
                 validate_password(first, candidate)
             except ValidationError as exc:
                 self.add_error("new_password1", exc)
-        if not first and "email" in cleaned and cleaned["email"] == self.user.email.casefold():
-            raise forms.ValidationError("Enter a new email or a new password.")
+        if (not first and "email" in cleaned and "username" in cleaned
+                and cleaned["email"] == self.user.email.casefold()
+                and cleaned["username"] == self.user.username):
+            raise forms.ValidationError("Enter a new username, email, or password.")
         return cleaned
 
 
@@ -76,20 +88,29 @@ def account_credentials(request):
                 with connection.cursor() as cursor:
                     cursor.execute("SELECT pg_advisory_xact_lock(%s)", [7319041203])
             user = get_user_model().objects.select_for_update().get(pk=request.user.pk)
+            username = form.cleaned_data["username"]
             email = form.cleaned_data["email"]
             if not user.check_password(form.cleaned_data["current_password"]):
                 form.add_error("current_password", "Current password is incorrect.")
             if get_user_model().objects.filter(email__iexact=email).exclude(pk=user.pk).exists():
                 form.add_error("email", "This email is already used by another account.")
+            if get_user_model().objects.filter(username__iexact=username).exclude(pk=user.pk).exists():
+                form.add_error("username", "This username is already used by another account.")
             if not form.errors:
+                username_changed = user.username != username
                 email_changed = user.email.casefold() != email
                 password_changed = bool(form.cleaned_data["new_password1"])
+                user.username = username
                 user.email = email
                 if password_changed:
                     user.set_password(form.cleaned_data["new_password1"])
-                user.save(update_fields=["email", "password"] if password_changed else ["email"])
+                fields = ["username", "email"]
+                if password_changed:
+                    fields.append("password")
+                user.save(update_fields=fields)
                 ChangeLog.objects.create(owner=user, action="login_details_changed",
                                          object_label="Account login", details={
+                                             "username_changed": username_changed,
                                              "email_changed": email_changed,
                                              "password_changed": password_changed,
                                          })

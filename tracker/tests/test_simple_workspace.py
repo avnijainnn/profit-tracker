@@ -161,7 +161,11 @@ class SimpleWorkspaceTests(TestCase):
             image_response = self.client.get(photo_url)
             self.assertEqual(image_response.status_code, 200)
             self.assertEqual(image_response['Content-Type'], 'image/jpeg')
-            image_response.close()
+            # Consume Django's streaming wrapper so it closes the photo without
+            # closing the PostgreSQL connection inside this TestCase transaction.
+            image_bytes = b''.join(image_response.streaming_content)
+            self.assertTrue(image_bytes.startswith(b'\xff\xd8'))
+            self.assertTrue(image_response.closed)
             self.client.force_login(self.other)
             self.assertEqual(self.client.get(photo_url).status_code, 404)
             self.client.logout()

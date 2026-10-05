@@ -2,11 +2,17 @@
   const isInternalURL = (url) => url.origin === window.location.origin;
   const isNativeURL = (url) => /^\/(account|admin|password-reset|login|logout)(\/|$)/.test(url.pathname);
   let navigation;
+  let navigationControls = [];
   let saving = false;
   let displayedURL = window.location.href;
   const deleteDialog = document.getElementById("delete-dialog");
   const deleteContent = deleteDialog?.querySelector("[data-delete-dialog-content]");
   let deleteTrigger;
+
+  function restoreNavigationControls() {
+    navigationControls.forEach((control) => { control.disabled = false; });
+    navigationControls = [];
+  }
 
   async function fillDeleteDialog(response) {
     if (!response.ok) throw new Error("Request failed");
@@ -27,6 +33,7 @@
 
   async function openDeleteDialog(url, trigger) {
     navigation?.abort();
+    restoreNavigationControls();
     navigation = new AbortController();
     const signal = navigation.signal;
     deleteTrigger = trigger;
@@ -142,11 +149,16 @@
   async function visit(url, { replace = false } = {}) {
     if (deleteDialog?.open && !saving) deleteDialog.close();
     navigation?.abort();
+    restoreNavigationControls();
     navigation = new AbortController();
     const signal = navigation.signal;
     const requestedURL = new URL(url, window.location.href);
     const requestURL = new URL(requestedURL);
     requestURL.hash = "";
+    // Keep the old form from accepting edits while its page is being replaced.
+    navigationControls = [...document.querySelectorAll("#main button, #main input:not([type='hidden']), #main select, #main textarea")]
+      .filter((control) => !control.disabled);
+    navigationControls.forEach((control) => { control.disabled = true; });
     document.querySelector("#main")?.setAttribute("aria-busy", "true");
     try {
       const response = await fetch(requestURL, {
@@ -161,7 +173,10 @@
         showFailure("Could not open this page. Please try the link again.");
       }
     } finally {
-      if (!signal.aborted) document.querySelector("#main")?.removeAttribute("aria-busy");
+      if (!signal.aborted) {
+        restoreNavigationControls();
+        document.querySelector("#main")?.removeAttribute("aria-busy");
+      }
     }
   }
 
@@ -213,8 +228,11 @@
     requestURL.hash = "";
     navigation?.abort();
     saving = true;
-    const buttons = [...form.querySelectorAll("button:not([disabled])")];
-    buttons.forEach((button) => { button.disabled = true; });
+    // Capture FormData first, then prevent edits until this response finishes.
+    const controls = [...form.querySelectorAll("button, input:not([type='hidden']), select, textarea")]
+      .filter((control) => !control.disabled);
+    controls.forEach((control) => { control.disabled = true; });
+    form.setAttribute("aria-busy", "true");
     const main = document.querySelector("#main");
     const modalDelete = form.matches("[data-delete-form]") && deleteDialog?.contains(form);
     main?.setAttribute("aria-busy", "true");
@@ -237,7 +255,8 @@
         modalDelete && deleteDialog.open ? deleteContent : document.querySelector("#main"));
     }).finally(() => {
       saving = false;
-      buttons.forEach((button) => { button.disabled = false; });
+      controls.forEach((control) => { control.disabled = false; });
+      form.removeAttribute("aria-busy");
       document.querySelector("#main")?.removeAttribute("aria-busy");
     });
   });

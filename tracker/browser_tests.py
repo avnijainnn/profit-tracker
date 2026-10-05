@@ -292,6 +292,14 @@ class BrowserWorkflows(StaticLiveServerTestCase):
         delete = self.page.locator(".product-card .danger-link").first
         delete.hover()
         self.assertEqual(delete.evaluate("el => getComputedStyle(el).backgroundColor"), "rgb(237, 90, 84)")
+        delete.click()
+        dialog = self.page.locator("#delete-dialog")
+        confirmation = dialog.get_by_role("button", name="Delete SKU", exact=True)
+        expect(confirmation).to_be_visible()
+        confirmation.hover()
+        self.assertEqual(confirmation.evaluate("el => getComputedStyle(el).backgroundColor"), "rgb(237, 90, 84)")
+        dialog.get_by_role("link", name="Cancel", exact=True).click()
+        expect(dialog).to_be_hidden()
 
     def test_compact_delete_modal_preserves_page_cancel_and_failed_retry(self):
         self.money_form("expense", "73.45")

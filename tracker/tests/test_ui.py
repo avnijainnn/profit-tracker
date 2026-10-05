@@ -131,7 +131,7 @@ class StaticDesignTests(SimpleTestCase):
             self.assertNotIn(removed, self.css)
 
     def test_shared_hover_excludes_the_sku_card_link(self):
-        hover = re.search(r"/\* Navigation hover.*?\*/\s*:is\((.*?)\):is\(:hover, :focus-visible\)\s*\{(.*?)\}",
+        hover = re.search(r"/\* Navigation hover.*?\*/\s*:is\((.*?)\):where\(:not\(\.danger-link\)\):is\(:hover, :focus-visible\)\s*\{(.*?)\}",
                           self.css, re.S)
         self.assertIsNotNone(hover)
         selectors, declarations = hover.groups()

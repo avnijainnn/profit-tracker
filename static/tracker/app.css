@@ -383,16 +383,16 @@ select option:hover, select option:checked {
   background: var(--hover); color: var(--text);
 }
 
-/* Navigation hover leaves the whole SKU card unchanged. */
+/* Navigation hover excludes SKU cards and destructive actions. */
 :is(
   a:not(.product-card-link):not(.btn), select, .text-button, .row-actions a,
   .sidebar nav a, .sidebar nav a.active,
   .sidebar-tools a, .sidebar-tools a.active,
   .entry-tabs a, .entry-tabs a.active,
   summary, .sidebar-tools summary, .optional-details summary, .inline-create summary,
-  .pagination a, .form-actions > .danger-link,
+  .pagination a,
   .small-link, .notice a, .table-wrap a, .brand
-):is(:hover, :focus-visible) {
+):where(:not(.danger-link)):is(:hover, :focus-visible) {
   background: var(--hover); color: var(--accent-strong);
   border-color: var(--border); text-decoration: none;
 }
@@ -401,8 +401,8 @@ button:not(:disabled):is(:hover, :focus-visible),
   background: var(--accent-strong); color: var(--panel);
   border-color: var(--accent-strong); text-decoration: none;
 }
-.btn-danger:is(:hover, :focus-visible), .btn.danger-link:is(:hover, :focus-visible), .btn.expense-action:is(:hover, :focus-visible),
-.row-actions .danger-link:is(:hover, :focus-visible) {
+.btn.btn-danger:is(:hover, :focus-visible), .btn.expense-action:is(:hover, :focus-visible),
+.danger-link:is(:hover, :focus-visible) {
   background: var(--danger); color: var(--text); border-color: var(--danger);
 }
 .small-link:not(.danger-link), .notice a, .pagination a { color: var(--secondary); }

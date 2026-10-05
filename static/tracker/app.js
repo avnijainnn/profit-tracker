@@ -4,13 +4,68 @@
   let navigation;
   let saving = false;
   let displayedURL = window.location.href;
+  const deleteDialog = document.getElementById("delete-dialog");
+  const deleteContent = deleteDialog?.querySelector("[data-delete-dialog-content]");
+  let deleteTrigger;
+
+  async function fillDeleteDialog(response) {
+    if (!response.ok) throw new Error("Request failed");
+    if (isNativeURL(new URL(response.url))) {
+      window.location.assign(response.url);
+      return;
+    }
+    const page = new DOMParser().parseFromString(await response.text(), "text/html");
+    const confirmation = page.querySelector("[data-delete-confirmation]");
+    if (!confirmation) throw new Error("Missing confirmation");
+    deleteContent.replaceChildren(confirmation);
+    const focusTarget = deleteContent.querySelector(".notice.error, .field-error, [data-delete-cancel]");
+    if (focusTarget) {
+      focusTarget.tabIndex = focusTarget.matches("a") ? 0 : -1;
+      focusTarget.focus();
+    }
+  }
+
+  async function openDeleteDialog(url, trigger) {
+    navigation?.abort();
+    navigation = new AbortController();
+    const signal = navigation.signal;
+    deleteTrigger = trigger;
+    document.querySelector("#main")?.removeAttribute("aria-busy");
+    const loading = document.createElement("p");
+    loading.id = "delete-title";
+    loading.className = "dialog-loading";
+    loading.textContent = "Loading confirmation…";
+    deleteContent.replaceChildren(loading);
+    deleteDialog.showModal();
+    try {
+      const response = await fetch(url, {credentials: "same-origin", signal,
+        headers: {"X-Requested-With": "XMLHttpRequest"}});
+      if (!signal.aborted && deleteDialog.open) await fillDeleteDialog(response);
+    } catch {
+      if (!signal.aborted) {
+        deleteDialog.close();
+        showFailure("Could not open the delete confirmation. Please try again.");
+      }
+    }
+  }
+
+  deleteDialog?.addEventListener("cancel", (event) => {
+    if (saving) event.preventDefault();
+  });
+  deleteDialog?.addEventListener("click", (event) => {
+    if (event.target === deleteDialog && !saving) deleteDialog.close();
+  });
+  deleteDialog?.addEventListener("close", () => {
+    if (!saving) navigation?.abort();
+    if (deleteTrigger?.isConnected) deleteTrigger.focus({preventScroll: true});
+  });
 
   function initializePage() {
     updatePaidByVisibility();
     document.querySelectorAll("details:has(.field-error)").forEach((detail) => { detail.open = true; });
   }
 
-  function showFailure(message) {
+  function showFailure(message, target = document.querySelector("#main")) {
     document.getElementById("request-error")?.remove();
     const notice = document.createElement("div");
     notice.id = "request-error";
@@ -18,7 +73,7 @@
     notice.setAttribute("role", "alert");
     notice.tabIndex = -1;
     notice.textContent = message;
-    document.querySelector("#main").prepend(notice);
+    target.prepend(notice);
     notice.focus();
   }
 
@@ -85,6 +140,7 @@
   }
 
   async function visit(url, { replace = false } = {}) {
+    if (deleteDialog?.open && !saving) deleteDialog.close();
     navigation?.abort();
     navigation = new AbortController();
     const signal = navigation.signal;
@@ -110,12 +166,15 @@
   }
 
   document.addEventListener("click", (event) => {
-    document.querySelectorAll(".more-actions[open]").forEach((menu) => {
-      if (!menu.contains(event.target)) menu.open = false;
-    });
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const link = event.target.closest("a[href]");
     if (!link || link.hasAttribute("download") || link.target || link.dataset.native !== undefined) return;
+
+    if (link.matches("[data-delete-cancel]") && deleteDialog?.open && deleteDialog.contains(link)) {
+      event.preventDefault();
+      if (!saving) deleteDialog.close();
+      return;
+    }
 
     const url = new URL(link.href, window.location.href);
     if (!isInternalURL(url)) return;
@@ -124,6 +183,10 @@
     if (url.pathname === window.location.pathname && url.search === window.location.search && url.hash) return;
 
     event.preventDefault();
+    if (deleteDialog && typeof deleteDialog.showModal === "function" && /^\/(transactions|stock|products)\/\d+\/(delete|void)\/$/.test(url.pathname)) {
+      openDeleteDialog(url.href, link);
+      return;
+    }
     visit(url.href);
   });
 
@@ -153,6 +216,7 @@
     const buttons = [...form.querySelectorAll("button:not([disabled])")];
     buttons.forEach((button) => { button.disabled = true; });
     const main = document.querySelector("#main");
+    const modalDelete = form.matches("[data-delete-form]") && deleteDialog?.contains(form);
     main?.setAttribute("aria-busy", "true");
     fetch(requestURL, {
       method: form.method.toUpperCase(),
@@ -160,9 +224,17 @@
       headers: { "X-Requested-With": "XMLHttpRequest" },
       credentials: "same-origin",
     }).then(async (response) => {
+      if (modalDelete && response.url === requestURL.href) {
+        await fillDeleteDialog(response);
+        return;
+      }
+      if (modalDelete) deleteDialog.close();
       await renderResponse(response, url, { replace: response.url === requestURL.href });
     }).catch(() => {
-      showFailure("We could not confirm this save. Your entries are still in the form. Check the record list or change history before trying again.");
+      showFailure(modalDelete
+        ? "We could not confirm this delete. Check the record list before trying again."
+        : "We could not confirm this save. Your entries are still in the form. Check the record list before trying again.",
+        modalDelete && deleteDialog.open ? deleteContent : document.querySelector("#main"));
     }).finally(() => {
       saving = false;
       buttons.forEach((button) => { button.disabled = false; });
@@ -178,12 +250,6 @@
     const detail = event.target.closest("details");
     if (detail) detail.open = true;
   }, true);
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") document.querySelectorAll(".more-actions[open]").forEach((menu) => {
-      menu.open = false;
-      menu.querySelector("summary").focus();
-    });
-  });
   window.addEventListener("popstate", () => {
     if (saving) window.history.pushState({}, "", displayedURL);
     else visit(window.location.href, { replace: true });

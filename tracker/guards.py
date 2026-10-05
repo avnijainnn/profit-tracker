@@ -3,12 +3,21 @@ import hashlib
 import json
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.db import connection
+from django.db.models import F
 from .models import MonthReview, Submission
 
 
 def lock_workspace(owner):
     # All money/stock/close operations acquire this lock first, avoiding lock-order races.
-    get_user_model().objects.select_for_update().get(pk=owner.pk)
+    users = get_user_model().objects
+    if connection.vendor == "sqlite":
+        # SQLite has no SELECT FOR UPDATE. Acquire its write lock before reading
+        # money/stock state so concurrent submissions cannot both pass validation.
+        if not users.filter(pk=owner.pk).update(last_login=F("last_login")):
+            raise ValidationError("Workspace owner no longer exists.")
+    else:
+        users.select_for_update().get(pk=owner.pk)
 
 
 def fingerprint(operation, payload):

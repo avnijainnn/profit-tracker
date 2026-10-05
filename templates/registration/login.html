@@ -1,10 +1,8 @@
 {% extends 'tracker/base.html' %}
 {% block content %}
-<section class="login-card">
-  <div class="brand"><span class="brand-mark">p.</span><span>profit studio<small>YOUR MONTH, MADE CLEAR.</small></span></div>
-  <div class="eyebrow space-top">WELCOME BACK</div>
-  <h1>Your business.<br>A clearer picture.</h1>
-  <p class="muted">Sign in with your email and password.</p>
+<section class="login-card signin-card">
+  <div class="brand"><span class="brand-mark">p.</span><span>profit studio</span></div>
+  <h1>Sign in</h1>
   <form method="post">
     {% csrf_token %}
     {% if form.non_field_errors %}<div class="notice error" role="alert">{{ form.non_field_errors }}</div>{% endif %}

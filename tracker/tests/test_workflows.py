@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.utils import timezone
 from tracker.forms import EntryForm
 from tracker.models import Account, BankTally, Category, ChangeLog, Entry, MonthReview, Product, StockMovement, InventoryLot, LotDepletion
-from tracker.services import add_stock, bank_activity, product_stats, report, setup_defaults
+from tracker.services import add_stock, bank_activity, product_stats, report, setup_defaults, save_bank_tally
 
 
 class WorkflowTests(TestCase):
@@ -64,11 +64,11 @@ class WorkflowTests(TestCase):
         receive(5, 4, "1600.00", uuid.uuid4())
         add_stock(self.product, self.user, {"date": date(2025, 9, 6), "kind": "sold", "quantity": 6,
                                             "submission_token": uuid.uuid4()})
-        self.client.post(reverse("entry_add", args=["income"]), {
-            "date": "2025-10-02", "sale_date": "2025-09-06", "recognized_amount": "4000.00", "amount": "3600.00",
-            "account": self.bank.pk, "source": "razorpay", "submission_token": str(uuid.uuid4()),
-            "expected_revision": 0,
-        })
+        # Preserve reporting of historical receipts with sale dates, even though
+        # new receipt forms use only actual money-received dates.
+        Entry.objects.create(owner=self.user, kind="income", date=date(2025, 10, 2),
+            sale_date=date(2025, 9, 6), recognized_amount=Decimal("4000.00"), amount=Decimal("3600.00"),
+            account=self.bank, source="razorpay")
         depletion = list(LotDepletion.objects.select_related("lot").order_by("lot__received_date"))
         self.assertEqual([(d.lot.batch_name, d.quantity, d.unit_cost) for d in depletion], [
             ("Lot 1", 4, Decimal("300.000000")), ("Lot 5", 2, Decimal("450.000000"))])
@@ -103,11 +103,9 @@ class WorkflowTests(TestCase):
         self.assertEqual(lot_movement.inventory_lot.costs_confirmed, True)
 
     def test_closed_sale_month_protects_later_cash_receipt_void(self):
-        self.client.post(reverse("entry_add", args=["income"]), {
-            "date": "2025-10-02", "sale_date": "2025-09-20", "recognized_amount": "500.00",
-            "amount": "450.00", "account": self.bank.pk, "source": "razorpay",
-            "submission_token": str(uuid.uuid4()), "expected_revision": 0,
-        })
+        Entry.objects.create(owner=self.user, kind="income", date=date(2025, 10, 2),
+            sale_date=date(2025, 9, 20), recognized_amount=Decimal("500.00"),
+            amount=Decimal("450.00"), account=self.bank, source="razorpay")
         income = Entry.objects.get(kind=Entry.Kind.INCOME)
         MonthReview.objects.create(owner=self.user, month=date(2025, 9, 1), closed_at=timezone.now())
         response = self.client.post(reverse("entry_void", args=[income.pk]), {
@@ -185,10 +183,10 @@ class WorkflowTests(TestCase):
             with self.subTest(name=name, args=args):
                 self.assertEqual(self.client.get(reverse(name, args=args)).status_code, 200)
 
-    def test_shared_shell_uses_dark_color_scheme_and_versioned_stylesheet(self):
+    def test_shared_shell_uses_light_color_scheme_and_versioned_stylesheet(self):
         response = self.client.get(reverse("dashboard"))
-        self.assertContains(response, '<meta name="color-scheme" content="dark">')
-        self.assertContains(response, "tracker/app.css?v=3")
+        self.assertContains(response, '<meta name="color-scheme" content="light">')
+        self.assertRegex(response.content.decode(), r"tracker/app\.css\?v=\d+")
 
     def test_dashboard_tabs_and_search_filter_monthly_entries(self):
         self.client.post(reverse("entry_add", args=["income"]), {
@@ -214,18 +212,15 @@ class WorkflowTests(TestCase):
         self.assertContains(response, "Optional details")
         self.assertContains(response, f'<option value="{self.product.pk}" selected')
 
-    def test_product_detail_has_separate_stock_actions_and_prefills_expense(self):
+    def test_product_detail_has_stock_actions_without_duplicate_expense_shortcut(self):
         response = self.client.get(reverse("product_detail", args=[self.product.pk]), {"month": "2025-08"})
         self.assertContains(response, "action=received")
         self.assertContains(response, "action=sold")
-        self.assertContains(response, f"product={self.product.pk}")
+        self.assertNotContains(response, reverse("entry_add", args=["expense"]))
 
-    def test_more_stock_actions_exclude_receive_and_sale(self):
+    def test_more_stock_actions_are_unavailable(self):
         response = self.client.get(reverse("stock_add", args=[self.product.pk]), {"action": "more"})
-        self.assertContains(response, "Saleable return")
-        self.assertContains(response, "Opening stock / adjustment in")
-        self.assertNotContains(response, "Stock received / new batch")
-        self.assertNotContains(response, "Units sold")
+        self.assertEqual(response.status_code, 404)
 
     def test_units_sold_feed_fifo_cogs_not_money_in(self):
         add_stock(self.product, self.user, {"date": date(2025, 8, 1), "kind": "received", "quantity": 5,
@@ -266,13 +261,11 @@ class WorkflowTests(TestCase):
             "submission_token": str(uuid.uuid4()), "expected_revision": 0,
         })
         payload = {
-            "account": self.bank.pk, "statement_credits": "10000.00", "statement_debits": "3700.00",
-            "notes": "August statement", "submission_token": str(uuid.uuid4()), "expected_revision": 0,
+            "statement_credits": Decimal("10000.00"), "statement_debits": Decimal("3700.00"),
+            "notes": "August statement", "submission_token": uuid.uuid4(), "expected_revision": 0,
         }
-        tally_url = f"{reverse('bank_tally')}?month=2025-08&account={self.bank.pk}"
-        response = self.client.post(tally_url, payload)
-        self.assertEqual(response.status_code, 302)
-        self.client.post(tally_url, payload)
+        save_bank_tally(self.user, self.bank, date(2025, 8, 1), payload)
+        save_bank_tally(self.user, self.bank, date(2025, 8, 1), payload)
         self.assertEqual(BankTally.objects.filter(owner=self.user, account=self.bank).count(), 1)
         self.assertEqual(ChangeLog.objects.filter(owner=self.user, action="bank_tally_saved").count(), 1)
         self.assertEqual(bank_activity(self.user, self.bank, date(2025, 8, 1), date(2025, 9, 1)), {
@@ -288,19 +281,20 @@ class WorkflowTests(TestCase):
             "date": "2025-08-22", "amount": "500.00", "account": cash.pk, "source": "cash",
             "submission_token": str(uuid.uuid4()), "expected_revision": 0,
         })
-        url = f"{reverse('bank_tally')}?month=2025-08&account={cash.pk}"
-        response = self.client.post(url, {"account": cash.pk, "statement_credits": "500.00",
-            "statement_debits": "0.00", "notes": "Cash count", "submission_token": str(uuid.uuid4()),
-            "expected_revision": 0})
-        self.assertEqual(response.status_code, 302)
-        tally = BankTally.objects.get(owner=self.user, account=cash)
-        self.assertEqual(tally.statement_credits, Decimal("500.00"))
-        self.assertEqual(self.client.get(url).status_code, 200)
-        response = self.client.get(reverse("bank_tally"), {"month": "2025-08", "account": self.bank.pk})
-        self.assertContains(response, "Statement credits")
+        wallet = Account.objects.get(owner=self.user, name="CRED wallet")
+        self.client.post(reverse("entry_add", args=["expense"]), self.entry_data(account=wallet.pk, amount="125.00"))
+        response = self.client.get(reverse("payment_summary"), {"month": "2025-08"})
+        self.assertEqual(response.status_code, 200)
+        rows = {row["account"].pk: row for row in response.context["rows"]}
+        self.assertEqual(rows[cash.pk]["received"], Decimal("500.00"))
+        self.assertEqual(rows[wallet.pk]["expenses"], Decimal("125.00"))
+        self.assertEqual(response.context["totals"], {"received": Decimal("500.00"), "expenses": Decimal("125.00")})
+        self.assertFalse(BankTally.objects.filter(owner=self.user).exists())
+        self.assertNotContains(response, "Statement credits")
+        self.assertNotContains(response, "Enter statement totals")
         self.assertContains(response, "Bank 2")
 
-    def test_monthly_report_sums_cash_and_operating_results(self):
+    def test_monthly_report_sums_received_money_expenses_and_profit(self):
         self.client.post(reverse("entry_add", args=["income"]), {
             "date": "2025-08-22", "sale_date": "2025-08-20", "recognized_amount": "10000.00",
             "amount": "10000.00", "account": self.bank.pk,
@@ -317,9 +311,10 @@ class WorkflowTests(TestCase):
         self.assertEqual(response.context["year_totals"]["expense"], Decimal("3500.00"))
         self.assertEqual(response.context["year_totals"]["result"], Decimal("6500.00"))
         self.assertEqual(response.context["year_totals"]["cash_profit"], Decimal("6500.00"))
-        self.assertEqual(response.context["year_totals"]["operating_profit"], Decimal("6500.00"))
         self.assertContains(response, "August 2025")
-        self.assertContains(response, "FIFO cost of goods sold")
+        self.assertContains(response, "Profit")
+        self.assertNotContains(response, "FIFO")
+        self.assertNotContains(response, "Operating Profit")
 
     def test_bank_tally_is_owner_scoped_and_closed_month_protected(self):
         foreign_bank = Account.objects.create(owner=self.other, name="Private bank", kind=Account.Kind.BANK)
@@ -330,8 +325,8 @@ class WorkflowTests(TestCase):
             "account": self.bank.pk, "statement_credits": "0.00", "statement_debits": "0.00",
             "notes": "", "submission_token": str(uuid.uuid4()), "expected_revision": 0,
         })
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "is closed")
+        self.assertEqual(response.status_code, 405)
+        self.assertEqual(self.client.get(tally_url).status_code, 200)
         self.assertFalse(BankTally.objects.filter(owner=self.user, account=self.bank).exists())
 
     def test_legacy_transactions_route_redirects_to_dashboard(self):

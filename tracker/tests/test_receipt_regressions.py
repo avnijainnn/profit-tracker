@@ -66,13 +66,15 @@ class ReceiptRegressionTests(TestCase):
         self.assertEqual({r['lot'].pk: r['remaining'] for r in stats['lots']},
                          {a.inventory_lot_id: 0, b.inventory_lot_id: 1})
 
-    def test_lot_view_preserves_paise_and_excludes_capitalized_expenses(self):
+    def test_product_view_includes_legacy_payments_in_their_payment_month(self):
         add_stock(self.product, self.user, self.receipt(extra_shipping_cost=Decimal('1.25'),
                                                        other_direct_cost=Decimal('2.50')))
         self.client.force_login(self.user)
-        response = self.client.get(reverse('product_detail', args=[self.product.pk]))
-        self.assertContains(response, '3.75')
-        self.assertEqual(list(response.context['expenses']), [])
+        response = self.client.get(reverse('product_detail', args=[self.product.pk]), {'month': '2025-08'})
+        self.assertContains(response, '1.25')
+        self.assertContains(response, '2.50')
+        self.assertEqual(len(response.context['expenses']), 3)
+        self.assertNotContains(response, 'Landed cost')
 
     def test_incomplete_costs_and_sales_are_flagged_in_affected_months(self):
         add_stock(self.product, self.user, self.receipt(manufacturing_cost=Decimal("0.00"), costs_confirmed=False))

@@ -44,10 +44,8 @@ class BootstrapTests(TestCase):
         self.assertEqual(Account.objects.filter(owner=user).count(), 7)
         totals = report(user, date(2025, 12, 1), date(2026, 1, 1))["totals"]
         self.assertEqual(totals["cash_profit"], Decimal("-5800.00"))
-        self.assertEqual(totals["cogs"], Decimal("2200.00"))
-        self.assertEqual(totals["operating_profit"], Decimal("1500.00"))
-        self.assertEqual(totals["cogs_unknown_units"], 0)
-        self.assertEqual(totals["unrecognized_receipts"], 0)
+        self.assertEqual(totals["expense"], Decimal("5800.00"))
+        self.assertEqual(totals["result"], Decimal("-5800.00"))
         cash = report(user, date(2026, 1, 1), date(2026, 2, 1))["totals"]
         self.assertEqual(cash["cash_profit"], Decimal("4000.00"))
         stats = product_stats(Product.objects.get(), date(2025, 12, 1), date(2026, 1, 1))

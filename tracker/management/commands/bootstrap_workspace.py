@@ -69,8 +69,7 @@ class Command(BaseCommand):
         add_stock(product, user, {"date": sale_month.replace(day=15), "kind": "sold", "quantity": 4,
                                  "notes": "DEMO: four tote bags sold", "submission_token": uuid.uuid4()})
         entries = [
-            ("income", {"date": cash_month, "sale_date": sale_month.replace(day=15),
-                        "recognized_amount": "4000.00", "amount": "4000.00", "source": "upi"}),
+            ("income", {"date": cash_month, "amount": "4000.00", "source": "upi"}),
             ("expense", {"date": sale_month.replace(day=20), "amount": "300.00", "category": category.pk}),
             ("transfer", {"date": sale_month.replace(day=21), "amount": "200.00", "destination": wallet.pk}),
         ]

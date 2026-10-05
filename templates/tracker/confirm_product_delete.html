@@ -1,0 +1,4 @@
+{% extends 'tracker/delete_confirmation.html' %}
+{% block delete_title %}Delete this SKU?{% endblock %}
+{% block delete_details %}<h2>{{ product.name }}</h2><p>{{ product.sku }}</p><p>Existing expenses stay in your monthly totals.</p>{% endblock %}
+{% block delete_label %}Delete SKU{% endblock %}

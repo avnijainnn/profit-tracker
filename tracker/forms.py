@@ -1,4 +1,7 @@
 from django import forms
+from io import BytesIO
+from django.core.files.uploadedfile import SimpleUploadedFile, UploadedFile
+from PIL import Image, ImageOps
 from django.db.models import Q
 import uuid
 from django.utils import timezone
@@ -43,12 +46,12 @@ class EntryForm(StyledForm):
         super().__init__(*args, **kwargs)
         self.instance.kind = kind
         self.fields["expected_revision"].initial = self.instance.revision if self.instance.pk else 0
-        if self.instance.pk:
-            self.fields["change_reason"].required = True
-        else:
+        if not self.instance.pk:
             self.fields.pop("change_reason")
         for name, model in (("account", Account), ("destination", Account), ("category", Category), ("subcategory", Subcategory), ("product", Product)):
             self.fields[name].queryset = model.objects.filter(owner=self.owner)
+        self.fields["product"].queryset = self.fields["product"].queryset.filter(
+            Q(active=True) | Q(pk=self.instance.product_id if self.instance.pk else None))
         for name, label in {"account": "Choose a payment account", "category": "Choose a category",
                             "product": "No product linked (optional)",
                             "destination": "External repayment / no destination"}.items():
@@ -64,15 +67,11 @@ class EntryForm(StyledForm):
         if kind != Entry.Kind.TRANSFER:
             self.fields.pop("destination")
         if kind == Entry.Kind.INCOME:
+            self.fields.pop("sale_date")
+            self.fields.pop("recognized_amount")
             self.fields["source"].required = True
             self.fields["amount"].help_text = "Enter the net amount received. Do not deduct fees/refunds again."
             self.fields["date"].label = "Actual receipt date"
-            self.fields["sale_date"].label = "Sale date (Operating Profit month)"
-            self.fields["sale_date"].required = False
-            self.fields["sale_date"].help_text = "Enter when the sales revenue was earned. Leave both fields blank for an advance or when not yet known."
-            self.fields["recognized_amount"].label = "Sales revenue earned (optional)"
-            self.fields["recognized_amount"].required = False
-            self.fields["recognized_amount"].help_text = "Gross amount recognized for Operating Profit; can differ from this net cash receipt."
             self.fields["amount"].label = "Amount received"
             self.fields["account"].label = "Received in"
             # Preserve historical account choices when editing old receipts.
@@ -118,10 +117,36 @@ class EntryForm(StyledForm):
         return data
 
 
+class ProductPhotoInput(forms.ClearableFileInput):
+    template_name = "tracker/photo_input.html"
+
+
 class ProductForm(StyledForm):
     class Meta:
         model = Product
-        fields = ["sku", "name", "kind", "selling_price", "active", "notes"]
+        fields = ["sku", "name", "photo", "kind", "notes"]
+        widgets = {"photo": ProductPhotoInput(attrs={"accept": "image/jpeg,image/png,image/webp"})}
+
+    def clean_photo(self):
+        photo = self.cleaned_data.get("photo")
+        if not isinstance(photo, UploadedFile):
+            return photo
+        if photo.size > 5 * 1024 * 1024:
+            raise forms.ValidationError("Choose a photo smaller than 5 MB.")
+        try:
+            photo.seek(0)
+            with Image.open(photo) as image:
+                if image.format not in ("JPEG", "PNG", "WEBP"):
+                    raise forms.ValidationError("Choose a JPG, PNG, or WebP photo.")
+                if image.width * image.height > 16_000_000:
+                    raise forms.ValidationError("Choose a photo with fewer than 16 million pixels.")
+                image = ImageOps.exif_transpose(image).convert("RGB")
+                image.thumbnail((1200, 1200))
+                output = BytesIO()
+                image.save(output, format="JPEG", quality=88)
+        except (OSError, ValueError, Image.DecompressionBombError) as exc:
+            raise forms.ValidationError("This photo could not be read. Choose another image.") from exc
+        return SimpleUploadedFile("photo.jpg", output.getvalue(), content_type="image/jpeg")
     def clean_sku(self):
         sku = self.cleaned_data["sku"].strip().upper()
         if Product.objects.filter(owner=self.owner, sku=sku).exclude(pk=self.instance.pk).exists():
@@ -130,17 +155,6 @@ class ProductForm(StyledForm):
 
 
 class StockForm(StyledForm):
-    costs_confirmed = forms.BooleanField(required=False, label="I have entered the full landed cost (use zero for any cost that does not apply).")
-    payment_date = forms.DateField(required=False, label="Actual payment date", widget=forms.DateInput(attrs={"type": "date"}))
-    manufacturer = forms.CharField(required=False, max_length=160, label="Manufacturer / supplier")
-    manufacturing_cost = forms.DecimalField(required=False, min_value=0, max_digits=12, decimal_places=2, label="Manufacturing cost", widget=forms.NumberInput(attrs={"min": "0", "step": "0.01"}))
-    base_shipping_cost = forms.DecimalField(required=False, min_value=0, max_digits=12, decimal_places=2, label="Base shipping cost", widget=forms.NumberInput(attrs={"min": "0", "step": "0.01"}))
-    extra_shipping_cost = forms.DecimalField(required=False, min_value=0, max_digits=12, decimal_places=2, label="Extra shipping cost", widget=forms.NumberInput(attrs={"min": "0", "step": "0.01"}))
-    other_direct_cost = forms.DecimalField(required=False, min_value=0, max_digits=12, decimal_places=2, label="Other direct cost", widget=forms.NumberInput(attrs={"min": "0", "step": "0.01"}))
-    payment_account = forms.ModelChoiceField(queryset=Account.objects.none(), required=False, label="Paid using")
-    existing_cost_entries = forms.ModelMultipleChoiceField(queryset=Entry.objects.none(), required=False,
-        label="Previously recorded product payments to include in this lot",
-        help_text="Select existing manufacturing/shipping expenses so they are linked to this lot instead of entered twice.")
     submission_token = forms.UUIDField(widget=forms.HiddenInput, initial=uuid.uuid4)
     class Meta:
         model = StockMovement
@@ -149,61 +163,43 @@ class StockForm(StyledForm):
 
     def __init__(self, *args, action=None, product=None, **kwargs):
         super().__init__(*args, **kwargs)
-        if action is None and self.is_bound:
-            action = self.data.get("kind")
+        action = action or (self.data.get("kind") if self.is_bound else StockMovement.Kind.RECEIVED)
+        self.fields["kind"].choices = [("received", "Stock received"), ("sold", "Units sold")]
         if action in (StockMovement.Kind.RECEIVED, StockMovement.Kind.SOLD):
             self.fields["kind"].initial = action
             self.fields["kind"].disabled = True
             self.fields["kind"].widget = forms.HiddenInput()
-        elif action == "more":
-            self.fields["kind"].choices = [choice for choice in self.fields["kind"].choices
-                                           if choice[0] not in (StockMovement.Kind.RECEIVED, StockMovement.Kind.SOLD)]
-        self.fields.pop("sales_amount", None)
-        if action != StockMovement.Kind.RECEIVED:
-            for name in ("payment_date", "manufacturer", "manufacturing_cost", "base_shipping_cost", "extra_shipping_cost", "other_direct_cost", "payment_account", "costs_confirmed", "existing_cost_entries"):
-                self.fields.pop(name)
-        else:
-            self.fields["payment_account"].queryset = Account.objects.filter(owner=self.owner).exclude(kind=Account.Kind.OTHER)
-            if product:
-                self.fields["existing_cost_entries"].queryset = Entry.objects.filter(owner=self.owner, kind=Entry.Kind.EXPENSE,
-                    product=product, inventory_lot__isnull=True, capitalized_inventory_cost=False,
-                    voided_at__isnull=True).select_related("account", "category").order_by("date", "pk")
-            self.fields["existing_cost_entries"].label_from_instance = lambda row: (
-                f"{row.date:%d %b %Y} · {row.category.name if row.category_id else 'Expense'} · "
-                f"₹{row.amount} · {row.account.name}")
-            if not self.fields["existing_cost_entries"].queryset.exists():
-                self.fields["existing_cost_entries"].widget = forms.MultipleHiddenInput()
-            for name, label in (("manufacturing_cost", "Additional manufacturing cost not already recorded"),
-                                ("base_shipping_cost", "Additional base shipping not already recorded"),
-                                ("extra_shipping_cost", "Additional extra shipping not already recorded"),
-                                ("other_direct_cost", "Additional direct cost not already recorded")):
-                self.fields[name].label = label
-            self.fields["payment_date"].initial = timezone.localdate()
-            for name in ("manufacturing_cost", "base_shipping_cost", "extra_shipping_cost", "other_direct_cost"):
-                self.fields[name].initial = 0
+        self.fields["date"].initial = timezone.localdate()
         if action == StockMovement.Kind.SOLD:
             self.fields.pop("batch_name")
             self.fields["date"].label = "Sales date"
-            self.fields["date"].help_text = "For a month-end total, use the last day of that month. For individual sales, use the actual sale date. Record earlier stock receipts first."
         elif action == StockMovement.Kind.RECEIVED:
             self.fields["date"].label = "Actual stock arrival date"
-            self.fields["date"].help_text = "Stock date controls lot order. Payment date controls Cash Profit."
 
-    def clean(self):
-        data = super().clean()
-        if data.get("kind") == StockMovement.Kind.RECEIVED:
-            if not data.get("costs_confirmed"):
-                self.add_error("costs_confirmed", "Confirm that all lot costs are entered before receiving stock.")
-            for name in ("manufacturing_cost", "base_shipping_cost", "extra_shipping_cost", "other_direct_cost"):
-                if data.get(name) is None:
-                    data[name] = 0
-            total = sum((data.get(n, 0) or 0 for n in ("manufacturing_cost", "base_shipping_cost", "extra_shipping_cost", "other_direct_cost")))
-            if total and not data.get("payment_account"):
-                self.add_error("payment_account", "Choose which account paid these stock costs.")
-            data["payment_date"] = data.get("payment_date") or data.get("date")
-            if data["payment_date"] and data["payment_date"] > timezone.localdate():
-                self.add_error("payment_date", "Enter an actual payment date, not a future date.")
-        return data
+
+class StockEditForm(StyledForm):
+    submission_token = forms.UUIDField(widget=forms.HiddenInput, initial=uuid.uuid4)
+    expected_state = forms.CharField(widget=forms.HiddenInput)
+
+    class Meta:
+        model = StockMovement
+        fields = ["date", "quantity", "batch_name", "notes"]
+        widgets = {"date": forms.DateInput(attrs={"type": "date"}),
+                   "quantity": forms.NumberInput(attrs={"min": 1, "step": 1})}
+
+
+class DeleteEntryForm(forms.Form):
+    expected_revision = forms.IntegerField(widget=forms.HiddenInput)
+    submission_token = forms.UUIDField(widget=forms.HiddenInput, initial=uuid.uuid4)
+
+
+class DeleteProductForm(forms.Form):
+    pass
+
+
+class DeleteStockForm(forms.Form):
+    expected_state = forms.CharField(widget=forms.HiddenInput)
+    submission_token = forms.UUIDField(widget=forms.HiddenInput, initial=uuid.uuid4)
 
 
 class AccountForm(StyledForm):
@@ -220,27 +216,12 @@ class AccountForm(StyledForm):
 class CategoryForm(StyledForm):
     class Meta:
         model = Category
-        fields = ["name", "default_cost_behavior"]
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["default_cost_behavior"].required = False
-    def clean_default_cost_behavior(self):
-        return self.cleaned_data.get("default_cost_behavior") or Category.CostBehavior.VARIABLE
+        fields = ["name"]
     def clean_name(self):
         name = self.cleaned_data["name"].strip()
         if Category.objects.filter(owner=self.owner, name__iexact=name).exists():
             raise forms.ValidationError("This category already exists.")
         return name
-
-
-class BankTallyForm(forms.Form):
-    statement_credits = forms.DecimalField(max_digits=12, decimal_places=2, min_value=0,
-                                           label="Statement credits", widget=forms.NumberInput(attrs={"min": "0", "step": "0.01", "class": "form-control"}))
-    statement_debits = forms.DecimalField(max_digits=12, decimal_places=2, min_value=0,
-                                          label="Statement debits", widget=forms.NumberInput(attrs={"min": "0", "step": "0.01", "class": "form-control"}))
-    notes = forms.CharField(required=False, label="Notes", widget=forms.Textarea(attrs={"rows": 3, "class": "form-control"}))
-    submission_token = forms.UUIDField(widget=forms.HiddenInput, initial=uuid.uuid4)
-    expected_revision = forms.IntegerField(widget=forms.HiddenInput, initial=0)
 
 
 class ConfirmChangeForm(forms.Form):

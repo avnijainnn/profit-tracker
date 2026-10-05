@@ -1,6 +1,12 @@
-{% extends 'tracker/base.html' %}{% load tracker_tags %}
+{% extends 'tracker/base.html' %}
 {% block content %}
-<header class="page-header"><div><div class="eyebrow">Inventory</div><h1>Products & stock</h1><p>Each receipt creates a dated lot with its landed cost. Sales consume lots FIFO.</p></div>{% include 'tracker/month_picker.html' %}</header>
-<div class="action-row"><p class="muted">{{ rows|length }} SKUs · current quantity includes all recorded movements.</p><a class="btn btn-primary" href="{% url 'product_add' %}?month={{ month }}">＋ Add SKU</a></div>
-<div class="product-grid">{% for row in rows %}<a class="product-card" href="{% url 'product_detail' row.product.pk %}?month={{ month }}"><div class="product-top"><span class="product-symbol">{% if row.product.kind == 'bag' %}▧{% else %}✳{% endif %}</span><span class="badge {% if row.available %}income{% else %}transfer{% endif %}">{% if row.available %}{{ row.available }} available{% else %}No available stock{% endif %}</span></div><small class="eyebrow">{{ row.product.sku }}</small><h2>{{ row.product.name }}</h2><p class="muted">{{ row.product.get_kind_display }}</p><div class="product-metrics"><span>Cash paid<strong>{{ row.spent|money }}</strong></span><span>{{ month_label }} paid<strong>{{ row.month_spent|money }}</strong></span></div><div class="product-bottom">{{ row.month_sold }} units sold in {{ month_label }} · view lot costs <span>↗</span></div></a>{% empty %}<section class="panel empty"><h2>Start with one design.</h2><p>Create a SKU before its first stock delivery.</p><a class="btn btn-primary" href="{% url 'product_add' %}">Add your first SKU</a></section>{% endfor %}</div>
+<header class="page-header"><h1>Products & stock</h1><a class="btn btn-primary" href="{% url 'product_add' %}?month={{ month }}">＋ Add SKU</a></header>
+<div class="product-grid">{% for row in rows %}
+<article class="product-card">
+<a class="product-card-link" href="{% url 'product_detail' row.product.pk %}?month={{ month }}">
+<div class="product-identity">{% if row.product.photo %}<img class="product-photo" src="{% url 'product_photo' row.product.pk %}" alt="" loading="lazy">{% else %}<span class="product-photo photo-placeholder" aria-hidden="true">▧</span>{% endif %}<div><h2>{{ row.product.name }}</h2><span class="muted">{{ row.product.sku }}</span></div></div>
+<div class="product-bottom"><span>{{ row.available }} units available</span><span aria-hidden="true">↗</span></div>
+</a>
+<div class="row-actions space-top"><a class="small-link" href="{% url 'product_edit' row.product.pk %}?month={{ month }}">Edit</a><a class="small-link danger-link" href="{% url 'product_delete' row.product.pk %}?month={{ month }}">Delete</a></div>
+</article>{% empty %}<section class="panel empty"><h2>No products</h2></section>{% endfor %}</div>
 {% endblock %}

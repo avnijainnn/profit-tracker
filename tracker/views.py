@@ -8,15 +8,16 @@ from django.core.exceptions import ValidationError
 from django.db import transaction, connection, DatabaseError
 from django.core.paginator import Paginator
 from django.db.models import Q
-from django.http import Http404, HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse, FileResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_safe
 from .domain import safe_csv_cell
-from .forms import AccountForm, BankTallyForm, CategoryForm, EntryForm, ProductForm, StockForm, ConfirmChangeForm, MonthReviewForm
-from .models import Account, BankTally, Category, ChangeLog, Entry, Product, StockMovement, MonthReview
-from .services import add_stock, bank_activity, chosen_month, entry_snapshot, monthly_entries, product_stats, report, save_bank_tally, save_entry, setup_defaults, void_entry, reverse_stock, change_month
+from .forms import AccountForm, CategoryForm, EntryForm, ProductForm, StockForm, StockEditForm, DeleteEntryForm, DeleteStockForm, DeleteProductForm, ConfirmChangeForm, MonthReviewForm
+from .models import Account, Category, ChangeLog, Entry, Product, StockMovement, MonthReview
+from .services import add_stock, chosen_month, entry_snapshot, monthly_entries, save_entry, void_entry, reverse_stock, change_month, edit_stock, stock_state
+from .summaries import EMPTY_STOCK, monthly_totals, money_totals, payment_totals, stock_totals, yearly_totals
 from .guards import lock_workspace
 
 
@@ -32,13 +33,13 @@ def month_url(name, month, **kwargs):
 @login_required
 def dashboard(request):
     context = chosen_month(request)
-    context.update(report(request.user, context["month_start"], context["month_end"]))
+    context["totals"] = monthly_totals(request.user, context["month_start"], context["month_end"])
     context["has_accounts"] = Account.objects.filter(owner=request.user).exists()
     context["review"] = MonthReview.objects.filter(owner=request.user, month=context["month_start"]).first()
     entries = monthly_entries(request.user, context["month_start"], context["month_end"])
-    kind = request.GET.get("kind", "income")
+    kind = request.GET.get("kind", "all")
     if kind not in Entry.Kind.values and kind != "all":
-        kind = "income"
+        kind = "all"
     query = request.GET.get("q", "").strip()
     if kind in Entry.Kind.values:
         entries = entries.filter(kind=kind)
@@ -60,19 +61,13 @@ def monthly_reports(request):
     except (TypeError, ValueError):
         year = current_year
     rows = []
+    months = yearly_totals(request.user, year)
     for month_number in range(1, 13):
         start = date(year, month_number, 1)
-        end = date(year + 1, 1, 1) if month_number == 12 else date(year, month_number + 1, 1)
-        month_report = report(request.user, start, end)
-        rows.append({"month": start.strftime("%Y-%m"), "label": start.strftime("%B"), **month_report})
+        rows.append({"month": start.strftime("%Y-%m"), "label": start.strftime("%B"),
+                     "totals": months.get(month_number, money_totals({}))})
     totals = {key: sum((row["totals"][key] for row in rows), Decimal("0.00"))
-              for key in ("income", "expense", "result", "withdrawal", "after_withdrawals", "cash_profit",
-                          "operating_income", "operating_expense", "cogs", "inventory_writeoff", "operating_profit")}
-    totals["unrecognized_receipts"] = sum(row["totals"]["unrecognized_receipts"] for row in rows)
-    totals["cogs_unknown_units"] = sum(row["totals"]["cogs_unknown_units"] for row in rows)
-    totals["writeoff_unknown_units"] = sum(row["totals"]["writeoff_unknown_units"] for row in rows)
-    totals["sold_bags"] = sum(row["sold_bags"] for row in rows)
-    totals["sold_thrift"] = sum(row["sold_thrift"] for row in rows)
+              for key in money_totals({})}
     return render(request, "tracker/monthly_reports.html", {"year": year, "month": f"{year}-01",
                   "rows": rows, "year_totals": totals})
 
@@ -111,7 +106,10 @@ def entry_form(request, kind=None, pk=None):
     before = entry_snapshot(entry) if entry else None
     product = None
     if kind == Entry.Kind.EXPENSE and request.GET.get("product"):
-        product = get_object_or_404(Product, pk=request.GET["product"], owner=request.user)
+        try:
+            product = get_object_or_404(Product, pk=request.GET["product"], owner=request.user, active=True)
+        except (ValueError, TypeError) as exc:
+            raise Http404 from exc
     preferences_key = f"entry_defaults_{request.user.pk}_{kind}"
     initial = dict(request.session.get(preferences_key, {})) if not entry else {}
     if not entry and not initial.get("account"):
@@ -176,8 +174,8 @@ def entry_form(request, kind=None, pk=None):
     # Optional inline inputs must not block saving the main entry in the browser.
     for optional_form in (account_form, category_form):
         optional_form.use_required_attribute = False
-    optional_fields = [form[n] for n in ("reference", "notes") if n in form.fields and not form.fields[n].required]
-    context.update({"form": form, "title": ("Edit " if entry else "Add ") + ("revenue" if kind == "income" else Entry.Kind(kind).label.lower()),
+    optional_fields = [form[n] for n in ("reference", "notes", "change_reason") if n in form.fields and not form.fields[n].required]
+    context.update({"form": form, "title": ("Edit " if entry else "Add ") + Entry.Kind(kind).label.lower(),
                     "entry": entry, "entry_kind": kind, "product_context": product,
                     "cancel_url": month_url("product_detail", context["month"], pk=product.pk) if product else month_url("dashboard", context["month"]) + f"&kind={kind}",
                     "save_another": not entry, "account_form": account_form, "category_form": category_form,
@@ -190,27 +188,28 @@ def entry_form(request, kind=None, pk=None):
 @login_required
 def entry_void(request, pk):
     entry = get_object_or_404(Entry, pk=pk, owner=request.user)
-    form = ConfirmChangeForm(request.POST or None, initial={"expected_revision": entry.revision})
+    form = DeleteEntryForm(request.POST or None, initial={"expected_revision": entry.revision})
     if request.method == "POST" and form.is_valid():
         try:
-            void_entry(entry, request.user, reason=form.cleaned_data["reason"],
+            void_entry(entry, request.user, reason="Deleted by user",
                        expected_revision=form.cleaned_data["expected_revision"], token=form.cleaned_data["submission_token"])
         except ValidationError as exc:
             show_validation(form, exc)
         else:
-            messages.success(request, "Entry voided; the original and your reason remain in history.")
+            messages.success(request, "Entry deleted.")
             return redirect(month_url("transactions", entry.date.strftime("%Y-%m")))
     context = chosen_month(request)
     return render(request, "tracker/confirm_void.html", {**context, "entry": entry, "form": form,
-                  "cancel_url": month_url("entry_edit", context["month"], pk=entry.pk)})
+                  "cancel_url": month_url("dashboard", context["month"])})
 
 
 @login_required
 def products(request):
     context = chosen_month(request)
     rows = []
-    for product in Product.objects.filter(owner=request.user).prefetch_related("movements", "entries"):
-        rows.append({"product": product, **product_stats(product, context["month_start"], context["month_end"])})
+    balances = stock_totals(request.user, context["month_start"], context["month_end"])
+    for product in Product.objects.filter(owner=request.user, active=True):
+        rows.append({"product": product, **balances.get(product.pk, EMPTY_STOCK)})
     context["rows"] = rows
     return render(request, "tracker/products.html", context)
 
@@ -219,39 +218,118 @@ def products(request):
 def product_form(request, pk=None):
     context = chosen_month(request)
     product = get_object_or_404(Product, pk=pk, owner=request.user) if pk else None
-    form = ProductForm(request.POST or None, instance=product, owner=request.user)
+    form = ProductForm(request.POST or None, request.FILES or None, instance=product, owner=request.user)
     if request.method == "POST" and form.is_valid():
         with transaction.atomic():
             lock_workspace(request.user)
             original = Product.objects.filter(pk=pk, owner=request.user).first() if pk else None
-            if original and original.kind != form.cleaned_data["kind"] and original.movements.exists():
+            if Product.objects.filter(owner=request.user, sku__iexact=form.cleaned_data["sku"]).exclude(pk=pk).exists():
+                form.add_error("sku", "This SKU already exists in your workspace.")
+            elif original and original.kind != form.cleaned_data["kind"] and original.movements.exists():
                 form.add_error("kind", "Product type cannot change after stock is recorded; it would change historical sales statistics.")
             else:
+                previous_photo = original.photo.name if original and original.photo else ""
+                previous_storage = original.photo.storage if previous_photo else None
                 product = form.save()
+                if previous_photo and previous_photo != product.photo.name:
+                    transaction.on_commit(lambda: previous_storage.delete(previous_photo))
                 ChangeLog.objects.create(owner=request.user, action="product_saved", object_label=product.sku,
                                          details={"name": product.name, "kind": product.kind, "notes": product.notes})
                 return redirect(month_url("product_detail", context["month"], pk=product.pk))
-    context.update({"form": form, "title": "Edit SKU" if product else "Add a new SKU", "save_label": "Save SKU", "cancel_url": month_url("products", context["month"])})
+    context.update({"form": form, "title": "Edit SKU" if product else "Add a new SKU", "photo_product": product,
+                    "save_label": "Save SKU", "cancel_url": month_url("products", context["month"])})
     return render(request, "tracker/form.html", context)
+
+
+@login_required
+def product_delete(request, pk):
+    context = chosen_month(request)
+    product = get_object_or_404(Product, pk=pk, owner=request.user)
+    form = DeleteProductForm(request.POST if request.method == "POST" else None)
+    if request.method == "POST" and form.is_valid():
+        with transaction.atomic():
+            lock_workspace(request.user)
+            product = get_object_or_404(Product.objects.select_for_update(), pk=pk, owner=request.user)
+            if product.active:
+                product.active = False
+                product.save(update_fields=["active"])
+                ChangeLog.objects.create(owner=request.user, action="product_deleted", object_label=product.sku,
+                                         details={"name": product.name, "kind": product.kind})
+        messages.success(request, "SKU deleted.")
+        return redirect(month_url("products", context["month"]))
+    return render(request, "tracker/confirm_product_delete.html", {**context, "product": product, "form": form,
+                  "cancel_url": month_url("products", context["month"])})
 
 
 @login_required
 def product_detail(request, pk):
     context = chosen_month(request)
     product = get_object_or_404(Product, pk=pk, owner=request.user)
-    context.update({"product": product, **product_stats(product, context["month_start"], context["month_end"]),
+    balances = stock_totals(request.user, context["month_start"], context["month_end"])
+    context.update({"product": product, **balances.get(product.pk, EMPTY_STOCK),
                     "expenses": product.entries.filter(kind=Entry.Kind.EXPENSE, voided_at__isnull=True,
-                                                       capitalized_inventory_cost=False).select_related("account", "category"),
-                    "movements": product.movements.select_related("reversal").prefetch_related("lot_depletions__lot").order_by("-date", "-pk")})
+                        date__gte=context["month_start"], date__lt=context["month_end"]).select_related("account", "category", "product"),
+                    "movements": product.movements.filter(reversal__isnull=True).order_by("-date", "-pk")})
     return render(request, "tracker/product_detail.html", context)
+
+
+@login_required
+def product_photo(request, pk):
+    product = get_object_or_404(Product, pk=pk, owner=request.user)
+    if not product.photo:
+        raise Http404
+    try:
+        photo = product.photo.open("rb")
+    except FileNotFoundError as exc:
+        raise Http404 from exc
+    return FileResponse(photo, content_type="image/jpeg")
+
+
+@login_required
+def stock_edit(request, pk):
+    movement = get_object_or_404(StockMovement, pk=pk, product__owner=request.user, reversal__isnull=True)
+    context = chosen_month(request)
+    form = StockEditForm(request.POST or None, instance=movement, owner=request.user,
+                         initial={"expected_state": stock_state(movement)})
+    if request.method == "POST" and form.is_valid():
+        try:
+            saved = edit_stock(movement, request.user, form.cleaned_data)
+        except ValidationError as exc:
+            show_validation(form, exc)
+        else:
+            messages.success(request, "Stock entry updated.")
+            return redirect(month_url("product_detail", saved.date.strftime("%Y-%m"), pk=saved.product_id))
+    optional_fields = [form[n] for n in ("batch_name", "notes")]
+    return render(request, "tracker/form.html", {**context, "form": form,
+        "title": f"Edit stock · {movement.product.name}", "save_label": "Save stock",
+        "optional_fields": optional_fields, "optional_field_names": [field.name for field in optional_fields],
+        "cancel_url": month_url("product_detail", context["month"], pk=movement.product_id)})
+
+
+@login_required
+def stock_delete(request, pk):
+    movement = get_object_or_404(StockMovement, pk=pk, product__owner=request.user)
+    context = chosen_month(request)
+    form = DeleteStockForm(request.POST or None, initial={"expected_state": stock_state(movement)})
+    if request.method == "POST" and form.is_valid():
+        try:
+            reverse_stock(movement, request.user, reason="Deleted by user",
+                          token=form.cleaned_data["submission_token"], expected_state=form.cleaned_data["expected_state"])
+        except ValidationError as exc:
+            show_validation(form, exc)
+        else:
+            messages.success(request, "Stock entry deleted.")
+            return redirect(month_url("product_detail", context["month"], pk=movement.product_id))
+    return render(request, "tracker/confirm_stock_delete.html", {**context, "movement": movement, "form": form,
+        "cancel_url": month_url("product_detail", context["month"], pk=movement.product_id)})
 
 
 @login_required
 def stock_form(request, pk):
     context = chosen_month(request)
-    product = get_object_or_404(Product, pk=pk, owner=request.user)
-    action = request.GET.get("action")
-    if action not in (None, "received", "sold", "more"):
+    product = get_object_or_404(Product, pk=pk, owner=request.user, active=True)
+    action = request.GET.get("action", "received")
+    if action not in ("received", "sold"):
         raise Http404
     form = StockForm(request.POST or None, owner=request.user, action=action, product=product)
     if request.method == "POST" and form.is_valid():
@@ -260,9 +338,9 @@ def stock_form(request, pk):
         except ValidationError as exc:
             form.add_error(None, exc)
         else:
-            messages.success(request, "Stock movement and FIFO lot cost saved.")
+            messages.success(request, "Stock saved.")
             return redirect(month_url("product_detail", form.cleaned_data["date"].strftime("%Y-%m"), pk=pk))
-    title = {"received": "Receive stock", "sold": "Record units sold"}.get(action, "More stock actions")
+    title = {"received": "Receive stock", "sold": "Record units sold"}[action]
     optional_fields = [form[n] for n in ("batch_name", "notes") if n in form.fields]
     context.update({"form": form, "title": f"{title} · {product.name}", "stock_form": True, "stock_action": action,
                     "save_label": {"received": "Receive stock", "sold": "Record units sold"}.get(action, "Save stock movement"),
@@ -278,20 +356,19 @@ def workspace_settings(request):
     category_form = CategoryForm(owner=request.user, prefix="category")
     if request.method == "POST":
         action = request.POST.get("action")
-        if action == "defaults":
-            setup_defaults(request.user)
-            messages.success(request, "Default accounts and categories added. Existing items were kept.")
-            return redirect("settings")
         form = None
         if action == "account":
             account_form = form = AccountForm(request.POST, owner=request.user, prefix="account")
         elif action == "category":
             category_form = form = CategoryForm(request.POST, owner=request.user, prefix="category")
-        if form and form.is_valid():
-            item = form.save()
-            ChangeLog.objects.create(owner=request.user, action=f"{action}_created", object_label=str(item))
-            messages.success(request, "Saved. It will be available in every month.")
-            return redirect("settings")
+        if form:
+            with transaction.atomic():
+                lock_workspace(request.user)
+                if form.is_valid():
+                    item = form.save()
+                    ChangeLog.objects.create(owner=request.user, action=f"{action}_created", object_label=str(item))
+                    messages.success(request, "Saved. It will be available in every month.")
+                    return redirect("settings")
     return render(request, "tracker/settings.html", {"account_form": account_form, "category_form": category_form,
                   "accounts": Account.objects.filter(owner=request.user), "categories": Category.objects.filter(owner=request.user)})
 
@@ -314,56 +391,27 @@ def export_csv(request):
     response["Content-Disposition"] = f'attachment; filename="transactions-{context["month"]}.csv"'
     response.write("\ufeff")
     writer = csv.writer(response)
-    writer.writerow(["ID", "Cash date", "Sale date", "Kind", "Cash amount INR", "Recognized sales INR", "Account", "Source", "Category", "Subcategory", "SKU", "Cost behavior", "Paid by", "Destination", "Reference", "Notes"])
+    writer.writerow(["ID", "Date", "Entry", "Amount INR", "Account", "Source", "Category", "SKU", "Paid by", "Destination", "Reference", "Notes"])
     for entry in monthly_entries(request.user, context["month_start"], context["month_end"]):
-        writer.writerow([entry.pk, entry.date.isoformat(), entry.sale_date.isoformat() if entry.sale_date else "",
-                         entry.get_kind_display(), str(entry.amount), str(entry.recognized_amount or ""),
+        writer.writerow([entry.pk, entry.date.isoformat(), entry.get_kind_display(), str(entry.amount),
                          *[safe_csv_cell(value) for value in (entry.account.name, entry.get_source_display(), entry.category,
-                            entry.subcategory, entry.product.sku if entry.product else "", entry.cost_behavior,
+                            entry.product.sku if entry.product else "",
                             entry.paid_by, entry.destination, entry.reference, entry.notes)]])
     return response
 
 
 @login_required
+@require_safe
 def bank_tally(request):
     context = chosen_month(request)
-    accounts = Account.objects.filter(owner=request.user).exclude(kind=Account.Kind.OTHER)
-    requested_account = request.POST.get("account") if request.method == "POST" else request.GET.get("account")
+    accounts = Account.objects.filter(owner=request.user)
+    requested_account = request.GET.get("account")
     if requested_account:
-        account = get_object_or_404(accounts, pk=requested_account)
-    else:
-        account = accounts.first()
-    rows = []
-    for bank_account in accounts:
-        tally = BankTally.objects.filter(owner=request.user, account=bank_account, month=context["month_start"]).first()
-        activity = bank_activity(request.user, bank_account, context["month_start"], context["month_end"])
-        rows.append({"account": bank_account, "tally": tally, "activity": activity,
-                     "credit_difference": tally.statement_credits - activity["credits"] if tally else None,
-                     "debit_difference": tally.statement_debits - activity["debits"] if tally else None})
-    form = None
-    selected_tally = None
-    if account:
-        selected_tally = BankTally.objects.filter(owner=request.user, account=account, month=context["month_start"]).first()
-        if request.method == "POST":
-            form = BankTallyForm(request.POST)
-            if form.is_valid():
-                try:
-                    save_bank_tally(request.user, account, context["month_start"], form.cleaned_data)
-                except ValidationError as exc:
-                    show_validation(form, exc)
-                else:
-                    messages.success(request, "Statement totals saved. Compare the differences below with your statement.")
-                    return redirect(f"{reverse('bank_tally')}?month={context['month']}&account={account.pk}#edit-tally")
-        else:
-            form = BankTallyForm(initial={
-                "statement_credits": selected_tally.statement_credits if selected_tally else Decimal("0.00"),
-                "statement_debits": selected_tally.statement_debits if selected_tally else Decimal("0.00"),
-                "notes": selected_tally.notes if selected_tally else "",
-                "expected_revision": selected_tally.revision if selected_tally else 0,
-            })
-    context.update({"accounts": accounts, "rows": rows, "selected_account": account,
-                    "selected_tally": selected_tally, "form": form,
-                    "selected_activity": bank_activity(request.user, account, context["month_start"], context["month_end"]) if account else None})
+        try:
+            get_object_or_404(accounts, pk=requested_account)
+        except (ValueError, TypeError) as exc:
+            raise Http404 from exc
+    context.update(payment_totals(request.user, context["month_start"], context["month_end"]))
     return render(request, "tracker/bank_tally.html", context)
 
 
@@ -402,7 +450,7 @@ def month_review(request):
             else:
                 messages.success(request, "Month closed." if action == "close" else "Month reopened. Your reason was saved.")
                 return redirect(month_url("month_review", context["month"]))
-    context.update(report(request.user, context["month_start"], context["month_end"]))
+    context["totals"] = monthly_totals(request.user, context["month_start"], context["month_end"])
     context.update({"form": form, "review": review})
     return render(request, "tracker/month_review.html", context)
 

@@ -1,0 +1,14 @@
+{% extends 'tracker/base.html' %}
+{% block content %}
+<section class="confirm-card" data-delete-confirmation>
+  <h1 id="delete-title">{% block delete_title %}Delete this item?{% endblock %}</h1>
+  <div class="confirm-details">{% block delete_details %}{% endblock %}</div>
+  <form method="post" action="{{ request.get_full_path }}" data-delete-form>
+    {% csrf_token %}{% include 'tracker/fields.html' %}
+    <div class="confirm-actions">
+      <a class="btn btn-light" href="{{ cancel_url }}" data-delete-cancel>Cancel</a>
+      <button class="btn btn-danger" type="submit">{% block delete_label %}Delete{% endblock %}</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

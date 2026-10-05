@@ -3,6 +3,11 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
 from decimal import Decimal
+import uuid
+
+
+def product_photo_path(instance, filename):
+    return f"products/{instance.owner_id}/{uuid.uuid4().hex}.jpg"
 
 
 class OwnedModel(models.Model):
@@ -62,6 +67,7 @@ class Subcategory(OwnedModel):
 class Product(OwnedModel):
     sku = models.CharField("SKU / design code", max_length=60)
     name = models.CharField(max_length=140)
+    photo = models.ImageField(upload_to=product_photo_path, blank=True)
     class Kind(models.TextChoices):
         BAG = "bag", "Bag"
         THRIFT = "thrift", "Thrift item"
@@ -293,7 +299,7 @@ class BankTally(OwnedModel):
 class ChangeLog(OwnedModel):
     action = models.CharField(max_length=40)
     object_label = models.CharField(max_length=200)
-    details = models.JSONField(default=dict)
+    details = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
         ordering = ["-created_at", "-pk"]
@@ -312,7 +318,7 @@ class Submission(OwnedModel):
 class MonthReview(OwnedModel):
     month = models.DateField()
     closed_at = models.DateTimeField(null=True, blank=True)
-    snapshot = models.JSONField(default=dict)
+    snapshot = models.JSONField(default=dict, blank=True)
     revision = models.PositiveIntegerField(default=0)
     class Meta:
         ordering = ["-month"]

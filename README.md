@@ -4,25 +4,25 @@ An editable **Python / Django** project. Open this folder in VS Code, change ord
 
 **Status: production safeguards added; launch verification still required.** This is not a deployed or certified production system. Start with local fictional data. The free Render Blueprint uses Neon PostgreSQL and disables password reset in demo mode, so no mail service is required for the client preview. Follow `DEPLOYMENT.md` to create the fictional client workspace. `VERIFICATION.md` records the checks completed.
 
-The accounting and inventory work is being implemented in stages. See [`docs/technical-design-progress.md`](docs/technical-design-progress.md) for the selected Cash Profit / Operating Profit rules, completed changes, and remaining gaps.
+The client UI uses three monthly totals: **Money received, Expenses, and Profit**. Profit is money received minus expenses, using actual receipt/payment dates. Stock receipts and unit sales are tracked separately from payments. Earlier technical notes describe legacy lot-cost calculations retained for historical records.
 
 ## What this version does
 
 - Login-protected workspace; each user's records are isolated from other users in the app.
-- Month dashboard with net receipts, expenses, Cash Profit and Operating Profit.
+- A simple month dashboard with money received, expenses, profit, and one searchable entries list.
 - Internal navigation and forms update the app content without a full document reload; browser Back/Forward continues to work, and CSV exports remain downloads.
-- Year-at-a-glance reports with Cash Profit, Operating Profit, FIFO COGS and stock write-offs.
-- Manual payment-mode credit/debit totals compared with recorded account activity; this is not a bank feed or transaction-level match.
+- Monthly reports with money received, expenses, and profit.
+- Automatic monthly money-received and expense totals for each payment account, using existing entries without statement-total input.
 - Multiple Razorpay, COD, UPI, and cash receipt entries; automatic monthly source totals.
 - Expenses with an actual date, amount, category, payment account, optional SKU, payer, reference, and notes.
 - Quick repeated entry with **Save & add another**; input can happen next month without changing the transaction month.
-- Persistent custom accounts/categories and a starter setup button.
+- Persistent custom payment accounts and expense categories, managed in Settings.
 - Separate transfers/repayments, excluded from income and expenses.
-- Products/SKUs for bags or thrift items, with dated inventory lots and landed-cost history.
-- FIFO lot-cost allocation for sold units, plus separately reported Cash Profit and Operating Profit.
-- Stock receipts with manufacturing/shipping costs, units sold, saleable returns, damage removals, and opening-stock adjustments.
+- Products/SKUs with optional photos beside their names.
+- Simple stock receipt and units-sold forms, with date, quantity, and optional batch/notes.
+- One stock history table and payment-month expenses on each SKU page; refunds/damage costs are entered as ordinary expenses.
 - Negative-stock validation, including backdated movements.
-- Financial edits and voids with a change history; read-only maintenance records in Django admin.
+- Edit/Delete actions on money and stock entries, with a retained change history.
 - Monthly financial CSV export with spreadsheet-formula escaping.
 - An opt-in fictional demo. No bank connection, payment credentials, or real client records are included.
 - Database-backed submission receipts prevent the same money/stock form being saved twice; changed retry payloads are rejected.
@@ -77,7 +77,7 @@ If a verification command fails, stop before using real records. Share the full 
 
 ### Empty workspace
 
-Open **Accounts & categories**, then click **Add starter accounts & categories**. Repeating this button preserves existing records and does not create duplicate defaults.
+Open **Accounts & categories** to see saved accounts/categories and add any additional ones. New empty workspaces can create their accounts and categories there; demo/bootstrap commands seed their defaults during setup.
 
 The default review month is the previous calendar month. Use the month picker to change it.
 
@@ -141,37 +141,53 @@ Here `python` means your selected `.venv` interpreter; use the explicit Windows/
 - Django email/password authentication, CSRF/password validation, and django-axes for login throttling.
 - Decimal database fields for money; integer quantities for stock.
 
-Money, stock, and month-closing services serialize changes per workspace using PostgreSQL row locks. The CI suite includes real concurrent PostgreSQL submissions. SQLite is only a convenient local demo database; it does not provide those concurrency guarantees.
+Money, stock, and month-closing changes are serialized with PostgreSQL row locks, or SQLite's database write lock for local use. Concurrent local tests use a disposable on-disk SQLite database. PostgreSQL concurrency is covered by the CI suite and requires a PostgreSQL test server.
 
 ## Rules that matter
 
-**Actual date controls the month.** A ₹35,000 payment on August 22 remains an August expense even when typed in September. Linking it to Aqua Babe also displays it in Aqua Babe's history; that is one record, not another expense.
+**Payment date controls the month.** An August payment stays in August, even if stock arrives in September. Linking an expense to a SKU shows the same record in both places.
 
-**Stock receipts capture costs by lot.** Enter the arrival date, quantity, full manufacturing/shipping/other direct costs, and payment details. Cash Profit counts the payment on its payment date; Operating Profit moves that inventory cost into FIFO COGS when units sell. Keep ordinary operating expenses separate from lot costs.
+**Profit = money received minus expenses.** All recorded expenses count, including expenses paid by someone else. Payment summary groups those same entries by account. There is no manual statement-total entry.
 
-**Receipts are net statement amounts.** Don't enter fees or refunds again if already deducted from a settlement. A separately paid manual refund is an expense. This is application workflow guidance, not a substitute for accounting advice.
+**Stock and payments are separate.** Receiving stock and recording units sold change quantities only. Record manufacturing, shipping, refund, damage, repayment, or withdrawal payments through the expense form as required by the client's workflow. Existing historical transfer/withdrawal records keep their original classification; the app does not silently convert them into expenses.
 
-**Transfers are excluded.** Credit-card purchases can be expenses; credit-card bill payments, wallet top-ups, own-bank transfers, and reimbursements use the transfer/repayment type. Classification is manual — the app cannot recognize a transfer you accidentally enter as an expense.
+**Edit and Delete are available.** Money and stock corrections retain an audit record. A stock correction cannot make the dated stock balance negative. Deleting a SKU removes it from the active list and new expense selections, while preserving existing payments and stock history.
 
-**These are management reports, not statutory accounts or live balances.** Cash Profit uses actual receipts and payments from your accounts; expenses someone else paid do not reduce it. Operating Profit uses separately entered gross sales amounts and sale dates, operating expenses, FIFO COGS, and recorded stock write-offs. Legacy stock costs and receipts without a recognized sales amount are flagged as incomplete. Liabilities, GST/tax, depreciation, accrued unpaid expenses, and settlement matching are not calculated.
+**Duplicate protection has boundaries.** Repeating a submitted money or stock form uses its saved submission receipt. A nonblank statement reference must be unique among active entries for an account. Separately opened forms with blank references can still describe the same payment.
 
-**Stock history is preserved.** Enter receipts/opening stock before sales. A saleable return adds stock. Use **Reverse mistake** to cancel an incorrect movement in its original month, then enter its replacement. This also corrects sold-unit statistics. Generic adjustments are for genuine stock-count differences. Reversing a receipt is blocked if subsequent stock would become negative. A damaged customer return that never becomes saleable needs a dedicated damaged-return workflow, still deferred.
+**Closed months are protected.** Close/reopen controls are on the monthly tracker. Financial changes require reopening the affected month. Stock changes also require reopening later closed months whose inventory would change.
 
-**Duplicate protection has defined boundaries.** The same submitted money/stock form is processed once, even with retries; active nonblank statement references are constrained in the database. Two separately opened forms with blank references can still represent the same real-world payment, so enter statement references and review entries. An identical amount alone is not evidence of duplication.
+**Photos are optional.** Add, replace, or remove a JPG, PNG, or WebP in the SKU form. Replaced files are removed after a successful database commit. See [client-workflow.md](docs/client-workflow.md) for storage requirements.
 
-**Closed means protected.** A completed month can be closed after review. Its transactions cannot be added, edited, or voided until reopened with a reason. Stock changes affecting any later closed month's ending inventory also require reopening those affected months. The original close snapshots remain in change history. These records are application history, not a tamper-proof regulatory audit ledger.
+## Historical compatibility and remaining setup
 
-## Deferred / awaiting Tanvi's answers
+Historical lot costs, statement tallies, transfer/withdrawal entries, and audit records remain in the database. The current screens do not request those extra inputs or calculate hidden FIFO/operating-profit panels. Retaining historical tables prevents destructive changes to existing records.
 
-1. Complete historical SKU costs: current lots support FIFO unit costs, but old stock has unknown cost until reviewed and corrected.
-2. Sales-to-settlement reconciliation: no assumption that gross sales equal same-month net settlements.
-3. Matching supplier advances to deliveries, reconciliation of actual supplier payments, and correction of legacy lot costs.
-4. Dedicated case-by-case customer return and damaged-stock register; only basic stock movements exist now.
-5. Final owner salary/withdrawal policy: this version shows before and after owner withdrawals.
-6. Final third-party payment policy: expenses currently count on the original payment date and are highlighted separately. Repayments are excluded; outstanding amounts owed are not tracked.
-7. CSV/bank-statement import, bank/Shopify/Razorpay integration, receipt attachments, subcategories, and bulk spreadsheet entry. Bank tally currently compares manually entered monthly totals only.
-8. Reimbursement matching, shared staff workspaces/permissions, account/category editing/archiving, product image uploads, and live account balances.
-9. Actual hosting/account setup, SMTP delivery verification, backup scheduling and restore drill, external alert destinations, browser QA, and production acceptance. Source configuration does not mean those services exist.
+The app does not connect to a bank, import settlements, calculate live balances, or generate statutory accounts. Hosting, SMTP delivery, persistent photo storage, backups, and PostgreSQL verification still require their own configured environments.
+
+## Local verification
+
+Run the read-only database audit:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py audit_data
+```
+
+Run the regular suite and isolated stress suite:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py test tracker.tests --settings=config.test_settings --noinput
+.\.venv\Scripts\python.exe manage.py test tracker.stress_tests --settings=config.stress_settings --noinput
+```
+
+Browser checks require Playwright and permission to launch a headless browser:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-browser.txt
+.\.venv\Scripts\python.exe manage.py test tracker.browser_tests --settings=config.browser_settings --keepdb --noinput
+```
+
+See [audit-results.md](docs/audit-results.md) for observed results and limits.
 
 ## Backups and safety
 

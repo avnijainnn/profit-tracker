@@ -1,0 +1,4 @@
+{% extends 'tracker/delete_confirmation.html' %}
+{% block delete_title %}Delete this stock entry?{% endblock %}
+{% block delete_details %}<h2>{{ movement.product.name }} · {{ movement.quantity }} units</h2><p>{{ movement.date|date:'d M Y' }} · {{ movement.get_kind_display }}</p>{% endblock %}
+{% block delete_label %}Delete stock entry{% endblock %}

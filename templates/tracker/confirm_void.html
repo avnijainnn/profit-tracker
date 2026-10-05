@@ -1,2 +1,4 @@
-{% extends 'tracker/base.html' %}{% load tracker_tags %}
-{% block content %}<header class="page-header"><h1>Void this entry?</h1></header><section class="panel entry-form"><h2>{{ entry.amount|money }} · {{ entry.get_kind_display }}</h2><p>{{ entry.date }} · {{ entry.account }}</p><p>The entry will be excluded from totals. Its original details and your reason remain in history. Add a corrected entry afterward if needed.</p><form method="post">{% csrf_token %}{% include 'tracker/fields.html' %}<div class="button-row"><button class="btn btn-danger">Confirm void</button><a class="btn btn-light" href="{{ cancel_url }}">Cancel</a></div></form></section>{% endblock %}
+{% extends 'tracker/delete_confirmation.html' %}{% load tracker_tags %}
+{% block delete_title %}Delete this entry?{% endblock %}
+{% block delete_details %}<h2>{{ entry.amount|money }} · {{ entry.get_kind_display }}</h2><p>{{ entry.date|date:'d M Y' }} · {{ entry.account }}</p>{% endblock %}
+{% block delete_label %}Delete entry{% endblock %}

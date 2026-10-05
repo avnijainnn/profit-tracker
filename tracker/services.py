@@ -9,6 +9,7 @@ from django.utils import timezone
 from .domain import month_bounds, statement_summary, stock_delta, validate_stock_timeline
 from .models import Account, BankTally, Category, ChangeLog, Entry, Product, StockMovement, StockReversal, MonthReview, InventoryLot, LotDepletion
 from .guards import lock_workspace, fingerprint, prior_submission, record_submission, require_open_months
+from .summaries import EMPTY_STOCK, monthly_totals, stock_totals
 
 
 def chosen_month(request):
@@ -103,6 +104,10 @@ def save_entry(form, owner, before=None):
     lock_workspace(owner)
     entry = form.save(commit=False)
     entry.owner = owner
+    if entry.inventory_lot_id and entry.product_id != entry.inventory_lot.product_id:
+        # Payment corrections are independent of historical receipt cost snapshots.
+        entry.inventory_lot = None
+        entry.capitalized_inventory_cost = False
     if entry.kind == Entry.Kind.EXPENSE and (not entry.pk or not before or
             before.get("category_id") != str(entry.category_id or "") or
             before.get("subcategory_id") != str(entry.subcategory_id or "")):
@@ -112,7 +117,7 @@ def save_entry(form, owner, before=None):
     token = form.cleaned_data["submission_token"]
     payload = entry_snapshot(entry)
     payload["revision"] = form.cleaned_data["expected_revision"]
-    payload["reason"] = form.cleaned_data.get("change_reason", "")
+    payload["reason"] = form.cleaned_data.get("change_reason", "").strip() or ("Entry corrected" if entry.pk else "")
     payload["amount"] = format(entry.amount, ".2f")
     digest = fingerprint("save_entry", payload)
     prior = prior_submission(owner, token, digest)
@@ -123,8 +128,6 @@ def save_entry(form, owner, before=None):
         existing = Entry.objects.get(pk=entry.pk, owner=owner)
         if existing.voided_at or existing.revision != form.cleaned_data["expected_revision"]:
             raise ValidationError("This entry changed since you opened it. Refresh before editing.")
-        if existing.capitalized_inventory_cost:
-            raise ValidationError("This payment is attached to an inventory lot. Reverse the stock receipt before changing it.")
         if not payload["reason"].strip():
             raise ValidationError("A correction reason is required.")
         require_open_months(owner, existing.date, entry.date, *([existing.sale_date] if existing.sale_date else []),
@@ -133,6 +136,9 @@ def save_entry(form, owner, before=None):
         entry.revision = existing.revision + 1
     else:
         require_open_months(owner, entry.date, *([entry.sale_date] if entry.sale_date else []))
+    if entry.product_id and (not before or before["product_id"] != str(entry.product_id)):
+        if not Product.objects.filter(pk=entry.product_id, owner=owner, active=True).exists():
+            raise ValidationError("This SKU was deleted. Choose another SKU or leave the product blank.")
     if entry.reference and Entry.objects.filter(owner=owner, account=entry.account, reference=entry.reference,
             voided_at__isnull=True).exclude(pk=entry.pk).exists():
         raise ValidationError("This statement reference already exists for this account. Check for a duplicate.")
@@ -151,8 +157,6 @@ def void_entry(entry, owner, *, reason, expected_revision, token):
     if prior_submission(owner, token, digest):
         return
     entry = Entry.objects.get(pk=entry.pk, owner=owner)
-    if entry.capitalized_inventory_cost:
-        raise ValidationError("This payment is attached to an inventory lot. Reverse the stock receipt before voiding it.")
     if entry.voided_at or entry.revision != expected_revision:
         raise ValidationError("This entry changed. Refresh and review the latest version.")
     if not reason.strip():
@@ -183,6 +187,8 @@ def add_stock(product, owner, cleaned_data):
     prior = prior_submission(owner, token, digest)
     if prior:
         return StockMovement.objects.get(pk=prior, product=product)
+    if not product.active:
+        raise ValidationError("This SKU was deleted. Choose an active SKU before adding stock.")
     movement = StockMovement(product=product, **values)
     movement.full_clean()
     require_open_months(owner, movement.date, inventory=True)
@@ -267,6 +273,54 @@ def add_stock(product, owner, cleaned_data):
     ChangeLog.objects.create(owner=owner, action="stock_recorded", object_label=f"{product.sku} · movement #{movement.pk}",
                              details={"date": str(movement.date), "kind": movement.kind, "quantity": movement.quantity,
                                       "batch": movement.batch_name, "notes": movement.notes})
+    record_submission(owner, token, digest, movement.pk)
+    return movement
+
+
+def stock_snapshot(movement):
+    return {name: str(getattr(movement, name)) for name in
+            ("pk", "date", "kind", "quantity", "batch_name", "notes")}
+
+
+def stock_state(movement):
+    return fingerprint("stock_state", stock_snapshot(movement))
+
+
+@transaction.atomic
+def edit_stock(movement, owner, cleaned_data):
+    lock_workspace(owner)
+    movement = StockMovement.objects.get(pk=movement.pk, product__owner=owner)
+    token = cleaned_data["submission_token"]
+    values = {name: cleaned_data[name] for name in ("date", "quantity", "batch_name", "notes")}
+    digest = fingerprint("edit_stock", {"id": movement.pk, **values,
+                                       "state": cleaned_data["expected_state"]})
+    prior = prior_submission(owner, token, digest)
+    if prior:
+        return StockMovement.objects.get(pk=prior, product__owner=owner)
+    if StockReversal.objects.filter(movement=movement).exists() or stock_state(movement) != cleaned_data["expected_state"]:
+        raise ValidationError("This stock entry changed. Refresh before editing.")
+    before = stock_snapshot(movement)
+    require_open_months(owner, movement.date, values["date"], inventory=True)
+    for name, value in values.items():
+        setattr(movement, name, value)
+    movement.full_clean()
+    timeline = list(movement.product.movements.filter(reversal__isnull=True).exclude(pk=movement.pk)) + [movement]
+    try:
+        validate_stock_timeline(sorted(timeline, key=lambda item: (item.date, item.pk)))
+    except ValueError as exc:
+        raise ValidationError("This change would leave stock below zero. Check the quantities and dates.") from exc
+    movement.save(update_fields=list(values))
+    if movement.inventory_lot_id:
+        lot = movement.inventory_lot
+        lot.received_date = movement.date
+        lot.quantity_received = movement.quantity
+        lot.batch_name = movement.batch_name
+        lot.full_clean()
+        lot.save(update_fields=["received_date", "quantity_received", "batch_name"])
+    # Stock corrections never move or duplicate the associated payment entries.
+    recompute_lot_depletions(movement.product)
+    ChangeLog.objects.create(owner=owner, action="stock_updated", object_label=f"Movement #{movement.pk}",
+                             details={"before": before, "after": stock_snapshot(movement)})
     record_submission(owner, token, digest, movement.pk)
     return movement
 
@@ -411,13 +465,18 @@ def save_bank_tally(owner, account, month, cleaned_data):
 
 
 @transaction.atomic
-def reverse_stock(movement, owner, *, reason, token):
+def reverse_stock(movement, owner, *, reason, token, expected_state=None):
     lock_workspace(owner)
     movement = StockMovement.objects.get(pk=movement.pk, product__owner=owner)
-    digest = fingerprint("reverse_stock", {"id": movement.pk, "reason": reason})
+    payload = {"id": movement.pk, "reason": reason}
+    if expected_state is not None:
+        payload["state"] = expected_state
+    digest = fingerprint("reverse_stock", payload)
     prior = prior_submission(owner, token, digest)
     if prior:
         return StockReversal.objects.get(pk=prior, owner=owner)
+    if expected_state is not None and expected_state != stock_state(movement):
+        raise ValidationError("This stock entry changed. Refresh before deleting.")
     if not reason.strip():
         raise ValidationError("A correction reason is required.")
     if StockReversal.objects.filter(movement=movement).exists():
@@ -466,10 +525,13 @@ def change_month(owner, month, *, close, reason, expected_state, token):
             raise ValidationError("Only a completed month can be closed.")
         if review.closed_at:
             raise ValidationError("This month is already closed.")
-        data = report(owner, start, end)
-        review.snapshot = {"totals": {k: str(v) for k, v in data["totals"].items()},
-                           "bags_sold": data["sold_bags"], "thrift_sold": data["sold_thrift"],
-                           "stock": {p.sku: product_stats(p, start, end)["stock_at_month_end"] for p in Product.objects.filter(owner=owner)}}
+        totals = monthly_totals(owner, start, end)
+        balances = stock_totals(owner, start, end)
+        products = list(Product.objects.filter(owner=owner))
+        review.snapshot = {"totals": {k: str(v) for k, v in totals.items()},
+                           "bags_sold": sum(balances.get(p.pk, EMPTY_STOCK)["month_sold"] for p in products if p.kind == "bag"),
+                           "thrift_sold": sum(balances.get(p.pk, EMPTY_STOCK)["month_sold"] for p in products if p.kind == "thrift"),
+                           "stock": {p.sku: balances.get(p.pk, EMPTY_STOCK)["stock_at_month_end"] for p in products}}
         review.closed_at = timezone.now()
     else:
         if not review.closed_at:

@@ -17,7 +17,6 @@ from django.views.decorators.debug import sensitive_post_parameters
 from django.views.decorators.http import require_http_methods
 
 from .models import ChangeLog
-from .services import setup_defaults
 
 
 SESSION_KEY = "owner_setup_token_digest"
@@ -89,7 +88,6 @@ def owner_setup(request):
             user.set_password(form.cleaned_data["password1"])
             user.full_clean()
             user.save()
-            setup_defaults(user)
             ChangeLog.objects.create(owner=user, action="workspace_initialized",
                                      object_label="Initial workspace", details={"fictional_data": False})
         request.session.pop(SESSION_KEY, None)

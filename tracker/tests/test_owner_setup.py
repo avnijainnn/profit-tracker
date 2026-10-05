@@ -42,7 +42,7 @@ class OwnerSetupTests(TestCase):
         self.assertEqual(user.email, "client@example.test")
         self.assertTrue(user.check_password(PASSWORD))
         self.assertFalse(user.is_staff or user.is_superuser)
-        self.assertTrue(Account.objects.filter(owner=user).exists())
+        self.assertFalse(Account.objects.exists())
         self.assertFalse(Entry.objects.exists())
         self.assertFalse(Product.objects.exists())
         self.assertEqual(ChangeLog.objects.filter(owner=user, action="workspace_initialized").count(), 1)
@@ -54,6 +54,7 @@ class OwnerSetupTests(TestCase):
         self.assertRedirects(self.client.post(reverse("login"), {
             "username": "client@example.test", "password": PASSWORD,
         }), reverse("dashboard"))
+        self.assertNotContains(self.client.get(reverse("dashboard")), "Client demo")
 
     @override_settings(INITIAL_OWNER_SETUP_TOKEN="")
     def test_setup_disabled_without_private_token(self):

@@ -8,7 +8,7 @@ one free web service; create the Neon Free PostgreSQL database separately. No pa
 subscription or additional storage service is required. Stay within both providers'
 free limits. This client's existing SQLite workspace, including its product photo,
 must be transferred before the site is handed over. The existing login is preserved;
-the client can change its email and password after signing in.
+the client can change its username, email, and password after signing in.
 
 ## Before deployment
 

@@ -3,12 +3,46 @@
 The free hosting alternatives and their tradeoffs are recorded in
 [hosting-options.md](docs/hosting-options.md).
 
-This repository deploys the existing Django application. The Render Blueprint creates
-one free web service; create the Neon Free PostgreSQL database separately. No paid
-subscription or additional storage service is required. Stay within both providers'
-free limits. This client's existing SQLite workspace, including its product photo,
-must be transferred before the site is handed over. The existing login is preserved;
-the client can change its username, email, and password after signing in.
+The client is already using `https://profit-tracker-q4eo.onrender.com/`. Its live
+database is the source of truth. The `db.sqlite3` in this checkout is a separate
+local workspace and must **not** be imported over the live client workspace.
+The client can change the existing account's username, email, and password after
+the live service is updated to this revision.
+
+## Update the existing live service
+
+1. In Render, find the service whose public URL is
+   `https://profit-tracker-q4eo.onrender.com/`. Confirm its current GitHub
+   repository/branch and the database configured by its private `DATABASE_URL`.
+   Keep that connection string out of Git and chat. Do not create a second
+   database or change `DATABASE_URL` during the code update.
+2. Pause client data entry. Take an independent backup of the **live PostgreSQL
+   database** and verify it can be read. Record the existing user's email and
+   counts of entries, products, stock events, and uploaded photos. Inspect
+   `workspace_initialized` for `fictional_data` and any `DEMO` records; review
+   these separately from the client's records before removing anything.
+3. Check product photos on the current live site and retain copies of any that
+   still load. The older deployment stored uploads on Render's temporary local
+   filesystem, so a code redeploy cannot be assumed to preserve those files.
+4. Update the **same Render service** from the verified `main` commit. In its
+   Settings, confirm the build command is `bash build.sh`, the start command is
+   `bash start.sh`, and the health check is `/healthz/`. Retain its existing
+   `DATABASE_URL` and `DJANGO_SECRET_KEY`. In Environment, set
+   `APP_ENV=production`, `DJANGO_DEBUG=false`, `DEMO_SEED_DATA=false`,
+   `ENABLE_PASSWORD_RESET=false`, `DATABASE_SSL_REQUIRE=true`, and
+   `TRUST_PROXY_HTTPS=true`. Existing users and records are left unchanged by
+   `prepare_deploy`; migrations run before the web process starts. Check the
+   deploy logs, live sign-in, record counts, and photos before reopening data
+   entry. Do not run `import_sqlite_workspace` against this database: it is
+   intended only for an empty destination and refuses nonempty workspaces.
+
+## Empty new service only
+
+The steps below apply only if an entirely new, empty PostgreSQL database and
+Render service are deliberately created. The Render Blueprint creates one free
+web service; create the Neon Free PostgreSQL database separately. No paid
+subscription or additional storage service is required. Stay within both
+providers' free limits.
 
 ## Before deployment
 
@@ -17,8 +51,8 @@ the client can change its username, email, and password after signing in.
    and `start.sh`, to GitHub.
 3. Run the project tests and verify the production configuration. Treat a failed
    check or migration as a deployment blocker.
-4. Keep a private backup of both `db.sqlite3` and `media/`. Stop entering records
-   in the local site for the final transfer, so the new site receives every entry.
+4. For an empty new service, keep a private backup of both `db.sqlite3` and
+   `media/`. Stop entering records in the local site for the final transfer.
 
 ## Create the free database
 
@@ -51,12 +85,14 @@ service for financial records. The app's CSV export is not a full backup.
    add fictional transactions because `APP_ENV=production` and
    `DEMO_SEED_DATA=false`.
 
-## Transfer the existing SQLite workspace
+## Transfer a SQLite workspace to an empty new service only
 
-The transfer command reads a consistent SQLite snapshot, copies the existing user,
-financial records, products, and local photos, then verifies the imported records
-and photo bytes. It refuses a destination that already contains user or workspace
-data. It never edits the local source or the private backup.
+Never run this transfer for `profit-tracker-q4eo.onrender.com` or its live database.
+For a separate empty service, the transfer command reads a consistent SQLite
+snapshot, copies the existing user, financial records, products, and local
+photos, then verifies the imported records and photo bytes. It refuses a
+destination that already contains user or workspace data. It never edits the
+local source or the private backup.
 
 1. Keep the old site closed to new entries during the final transfer. In the
    project directory, run this read-only preview against the **current** local
@@ -97,10 +133,13 @@ its local files for a SQLite database or backups.
 
 ## Product photos and account recovery
 
-Product photos use the PostgreSQL database in production, so they survive Render
-restarts, sleep, and redeploys. Photos remain available only through the app's
-authenticated endpoint. Locally, Django keeps using the `media/` folder. Local
-photos and records are copied by the one-time transfer command above.
+With this revision, newly uploaded product photos use the PostgreSQL database in
+production, so they survive Render restarts, sleep, and redeploys. Photos remain
+available only through the app's authenticated endpoint. Files uploaded under
+the older live deployment are **not** moved into PostgreSQL automatically;
+retain and migrate those separately before updating it. Locally, Django keeps
+using the `media/` folder. For an empty new service, the transfer command above
+copies local photos and records.
 
 Password reset is disabled in the free Blueprint because no mail provider is
 configured. The client should keep her password in a password manager. To enable email
@@ -110,12 +149,14 @@ recovery later, configure a supported transactional email provider, set
 ## Verification and rollback
 
 Check Render deploy logs for successful dependency installation, static collection,
-and migrations. Confirm the `/healthz/` endpoint and sign in over HTTPS. Check that
-the existing entry, both products, and the product photo appear, and compare their
-values with the local site. The deployed interface must not show a demo banner or
-fictional entries. Back up the database before later updates. If an update fails,
-restore the previous code version and investigate before retrying. Do not delete
-the Neon project to reset a password or repair a failed deployment.
+and migrations. Confirm the `/healthz/` endpoint and sign in over HTTPS. For the
+existing live service, compare its user and record counts with the live backup
+made before deployment, and verify uploaded photos separately. For an empty new
+service receiving the local SQLite import, check its entry, products, and photo
+against the local source. The production interface must not show a demo banner
+or fictional entries. Back up the database before later updates. If an update
+fails, restore the previous code version and investigate before retrying. Do
+not delete the Neon project to reset a password or repair a failed deployment.
 
 Provider free plans and limits can change. Check the current Render and Neon
 dashboards before deployment and during use.

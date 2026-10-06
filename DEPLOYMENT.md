@@ -160,5 +160,32 @@ or fictional entries. Back up the database before later updates. If an update
 fails, restore the previous code version and investigate before retrying. Do
 not delete the Neon project to reset a password or repair a failed deployment.
 
+## Offline SQLite recovery backup
+
+The live PostgreSQL workspace can be copied into a private SQLite file without
+changing the live data. This also saves a `workspace.json` fixture alongside it.
+Both files include the account, financial records, products, and database-stored
+photo bytes. Keep the backup folder off GitHub and copy it to another secure
+location in case this computer is lost.
+
+In a local PowerShell session, provide the existing Neon URL without saving it in
+Git or pasting it into a command history entry:
+
+```powershell
+$privateUrl = Read-Host 'Neon DATABASE_URL' -AsSecureString
+$env:DATABASE_URL = [System.Net.NetworkCredential]::new('', $privateUrl).Password
+.\.venv\Scripts\python.exe scripts\backup_postgres_to_sqlite.py
+Remove-Item Env:DATABASE_URL
+$privateUrl = $null
+```
+
+The script creates a new timestamped directory under ignored `backups/`, then
+compares every serialized user and tracker record with the SQLite copy and runs
+`PRAGMA integrity_check`. It never writes to PostgreSQL. To recover a hosted site
+later, provision a **new empty** PostgreSQL database, run migrations, and load the
+matching `workspace.json` fixture before starting the service. Never load it
+over the current live database. The SQLite file is an offline recovery copy;
+production still requires PostgreSQL and a durable photo store.
+
 Provider free plans and limits can change. Check the current Render and Neon
 dashboards before deployment and during use.

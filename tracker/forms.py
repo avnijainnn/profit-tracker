@@ -120,6 +120,11 @@ class EntryForm(StyledForm):
 class ProductPhotoInput(forms.ClearableFileInput):
     template_name = "tracker/photo_input.html"
 
+    def is_initial(self, value):
+        # Photos are served through the authenticated product endpoint, so the
+        # private storage intentionally has no public URL for Django to inspect.
+        return bool(value and getattr(value, "name", None))
+
 
 class ProductForm(StyledForm):
     class Meta:

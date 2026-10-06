@@ -79,6 +79,11 @@ class Product(OwnedModel):
     class Meta:
         ordering = ["name"]
         constraints = [models.UniqueConstraint(fields=["owner", "sku"], name="unique_owner_sku")]
+
+    @property
+    def photo_available(self):
+        return bool(self.photo and self.photo.storage.exists(self.photo.name))
+
     def __str__(self):
         return f"{self.name} · {self.sku}"
 

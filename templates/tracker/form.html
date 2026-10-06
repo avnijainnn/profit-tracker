@@ -3,7 +3,7 @@
 <header class="page-header"><div><h1>{{ title }}</h1></div><a class="small-link" href="{{ cancel_url }}">← Back</a></header>
 {% if entry_kind == 'expense' %}<div class="notice subtle">Expenses appear in the month of the actual payment date.</div>{% endif %}
 {% if stock_form and stock_action == 'received' %}<div class="notice subtle">Record payments separately as expenses, using the date you paid.</div>{% endif %}
-{% if photo_product.photo %}<img class="product-photo spaced" src="{% url 'product_photo' photo_product.pk %}" alt="Current product photo">{% endif %}
+{% if photo_product.photo_available %}<img class="product-photo spaced" src="{% url 'product_photo' photo_product.pk %}" alt="Current product photo">{% endif %}
 <form method="post"{% if form.is_multipart %} enctype="multipart/form-data"{% endif %} class="panel entry-form">{% csrf_token %}<div class="form-grid">{% include 'tracker/fields.html' with form=form optional_field_names=optional_field_names %}</div>
 {% if optional_fields %}<details class="optional-details"><summary>Optional details</summary><div class="form-grid">{% include 'tracker/fields.html' with form=form optional_field_names=optional_field_names only_optional=True %}</div></details>{% endif %}
 {% if entry_kind == 'expense' or entry_kind == 'income' %}<div class="inline-create-group">

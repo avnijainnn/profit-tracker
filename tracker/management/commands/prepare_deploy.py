@@ -8,11 +8,15 @@ class Command(BaseCommand):
     help = "Apply migrations and initialize an empty deployment before starting the server."
 
     def handle(self, *args, **options):
-        # Serialize overlapping deploys on the direct PostgreSQL connection.
-        # This is a session lock: do not use a transaction-pooler DATABASE_URL.
+        # The app may use Neon's transaction pooler, but a session advisory lock
+        # for migrations must use the direct host for the same database.
         lock_id = 7319041201
         postgres = connection.vendor == "postgresql"
         if postgres:
+            host = connection.settings_dict.get("HOST", "")
+            if host.endswith(".neon.tech") and "-pooler." in host:
+                connection.close()
+                connection.settings_dict["HOST"] = host.replace("-pooler.", ".", 1)
             with connection.cursor() as cursor:
                 cursor.execute("SELECT pg_advisory_lock(%s)", [lock_id])
         try:

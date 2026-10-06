@@ -15,7 +15,8 @@ the live service is updated to this revision.
    `https://profit-tracker-q4eo.onrender.com/`. Confirm its current GitHub
    repository/branch and the database configured by its private `DATABASE_URL`.
    Keep that connection string out of Git and chat. Do not create a second
-   database or change `DATABASE_URL` during the code update.
+   database. The app can use the existing pooled Neon URL; `prepare_deploy`
+   connects to the matching direct Neon host only while it runs migrations.
 2. Pause client data entry. Take an independent backup of the **live PostgreSQL
    database** and verify it can be read. Record the existing user's email and
    counts of entries, products, stock events, and uploaded photos. Inspect
@@ -27,7 +28,8 @@ the live service is updated to this revision.
 4. Update the **same Render service** from the verified `main` commit. In its
    Settings, confirm the build command is `bash build.sh`, the start command is
    `bash start.sh`, and the health check is `/healthz/`. Retain its existing
-   `DATABASE_URL` and `DJANGO_SECRET_KEY`. In Environment, set
+   database connection and retain `DJANGO_SECRET_KEY`.
+   In Environment, set
    `APP_ENV=production`, `DJANGO_DEBUG=false`, `DEMO_SEED_DATA=false`,
    `ENABLE_PASSWORD_RESET=false`, `DATABASE_SSL_REQUIRE=true`, and
    `TRUST_PROXY_HTTPS=true`. Existing users and records are left unchanged by
@@ -56,9 +58,9 @@ providers' free limits.
 
 ## Create the free database
 
-Create a Neon Free PostgreSQL project. Copy its **direct** connection string into
-Render's private `DATABASE_URL` environment variable. Use the direct URL because
-`prepare_deploy` takes a PostgreSQL session advisory lock during migration. Keep
+Create a Neon Free PostgreSQL project. Copy its connection string into Render's
+private `DATABASE_URL` environment variable. A pooled URL also works: migration
+startup uses the direct host for the same database while holding its lock. Keep
 SSL enabled. Do not commit or paste the URL into a public issue or chat.
 
 Neon stores records and product photos. Monitor its storage and compute allowances;

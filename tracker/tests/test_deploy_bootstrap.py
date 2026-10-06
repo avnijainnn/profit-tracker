@@ -17,6 +17,19 @@ from tracker.models import Account, Entry, Product
 from tracker.services import product_stats, report
 
 
+class PrepareDeployConfigurationTests(TestCase):
+    @patch("tracker.management.commands.prepare_deploy.connection")
+    @patch("tracker.management.commands.prepare_deploy.call_command")
+    def test_neon_pooler_uses_direct_host_for_migrations(self, child_commands, deploy_connection):
+        deploy_connection.vendor = "postgresql"
+        deploy_connection.settings_dict = {"HOST": "ep-example-pooler.region.aws.neon.tech"}
+        call_command("prepare_deploy", stdout=StringIO())
+        deploy_connection.close.assert_called_once()
+        self.assertEqual(deploy_connection.settings_dict["HOST"], "ep-example.region.aws.neon.tech")
+        self.assertEqual(child_commands.call_count, 2)
+        self.assertEqual(deploy_connection.cursor.call_count, 2)
+
+
 INITIAL_ENV = {
     "INITIAL_OWNER_USERNAME": "client-demo",
     "INITIAL_OWNER_EMAIL": "client@example.test",

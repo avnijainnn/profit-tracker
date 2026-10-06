@@ -1,8 +1,11 @@
+from datetime import date
+from decimal import Decimal
+
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
 
-from tracker.models import Account, ChangeLog, Product
+from tracker.models import Account, ChangeLog, Entry, Product
 from tracker.services import setup_defaults
 
 
@@ -52,6 +55,36 @@ class AccountCredentialsTests(TestCase):
         self.assertRedirects(self.client.post(reverse("login"), {
             "username": "new@example.test", "password": NEW_PASSWORD,
         }), reverse("dashboard"))
+
+    def test_email_only_change_keeps_existing_entry_visible(self):
+        account = Account.objects.filter(owner=self.user, kind=Account.Kind.BANK).first()
+        entry = Entry.objects.create(
+            owner=self.user, kind=Entry.Kind.INCOME, date=date(2026, 9, 15),
+            amount=Decimal("125.00"), source=Entry.Source.UPI, account=account,
+            reference="PRESERVE-ENTRY-1",
+        )
+        original_user_id = self.user.pk
+        self.client.force_login(self.user, backend="tracker.authentication.EmailBackend")
+
+        self.assertRedirects(self.change(
+            username="owner", new_password1="", new_password2="",
+        ), self.url)
+        self.user.refresh_from_db()
+        entry.refresh_from_db()
+        self.assertEqual(self.user.pk, original_user_id)
+        self.assertEqual(self.user.email, "new@example.test")
+        self.assertTrue(self.user.check_password(OLD_PASSWORD))
+        self.assertEqual(entry.owner_id, original_user_id)
+        self.assertEqual(Entry.objects.filter(owner=self.user).count(), 1)
+
+        self.client.logout()
+        self.assertRedirects(self.client.post(reverse("login"), {
+            "username": "new@example.test", "password": OLD_PASSWORD,
+        }), reverse("dashboard"))
+        self.assertContains(
+            self.client.get(reverse("dashboard"), {"month": "2026-09"}),
+            "PRESERVE-ENTRY-1",
+        )
 
     def test_wrong_current_password_and_existing_email_are_rejected(self):
         other = get_user_model().objects.create_user(

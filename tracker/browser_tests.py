@@ -355,6 +355,7 @@ class BrowserWorkflows(StaticLiveServerTestCase):
         self.page.get_by_role("button", name="Log out", exact=True).click()
         expect(self.page.get_by_label("Email")).to_be_visible()
 
+    @override_settings(PASSWORD_RESET_ENABLED=True)
     def test_email_login_and_password_reset(self):
         from django.core import mail
         self.page.get_by_role("button", name="Log out", exact=True).click()

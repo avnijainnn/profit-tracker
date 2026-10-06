@@ -38,6 +38,13 @@ the live service is updated to this revision.
    entry. Do not run `import_sqlite_workspace` against this database: it is
    intended only for an empty destination and refuses nonempty workspaces.
 
+If the live page says "Client demo" or "testing only" after the code deploy,
+the existing Render service still has `APP_ENV=demo`. In that service's
+Environment page, set `APP_ENV=production` and `DEMO_SEED_DATA=false` at the
+service level, then choose **Save, rebuild, and deploy**. Keep its existing
+`DATABASE_URL` and `DJANGO_SECRET_KEY`. The banner reflects an environment
+setting; it does not inspect whether the client's saved entries are fictional.
+
 ## Empty new service only
 
 The steps below apply only if an entirely new, empty PostgreSQL database and

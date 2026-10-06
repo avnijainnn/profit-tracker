@@ -136,6 +136,7 @@ class SafeguardTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(Entry.objects.count(), 0)
 
+    @override_settings(PASSWORD_RESET_ENABLED=True)
     def test_reset_email_throttled_without_disclosing_account(self):
         self.user.email = "owner@example.test"
         self.user.save(update_fields=["email"])
@@ -177,6 +178,7 @@ class SafeguardTests(TestCase):
                          HTTP_COOKIE=f"device={attempt}"), username="owner@example.test", password="incorrect")
         self.assertIsNone(authenticate(request=factory.post("/account/login/"), username="owner@example.test", password="test-only-long-password"))
 
+    @override_settings(PASSWORD_RESET_ENABLED=True)
     def test_auth_pages_render(self):
         self.client.logout()
         for route in ("login", "password_reset", "password_reset_done", "password_reset_complete"):

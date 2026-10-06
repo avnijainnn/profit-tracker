@@ -8,9 +8,9 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEBUG = os.environ.get("DJANGO_DEBUG", "true").lower() == "true"
 DEMO_MODE = os.environ.get("APP_ENV") == "demo"
-PASSWORD_RESET_ENABLED = os.environ.get(
-    "ENABLE_PASSWORD_RESET", "false" if DEMO_MODE else "true"
-).lower() == "true"
+# Email recovery requires a configured mail provider; keep it opt-in on every
+# deployment so a demo-to-production environment change cannot break startup.
+PASSWORD_RESET_ENABLED = os.environ.get("ENABLE_PASSWORD_RESET", "false").lower() == "true"
 INITIAL_OWNER_SETUP_TOKEN = os.environ.get("INITIAL_OWNER_SETUP_TOKEN", "").strip()
 DEPLOYED = bool(os.environ.get("RENDER")) or os.environ.get("APP_ENV") in ("production", "staging", "demo")
 if DEPLOYED and DEBUG:

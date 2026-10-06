@@ -99,6 +99,7 @@ jobs:
         run: |
           python manage.py collectstatic --noinput
           python manage.py check --deploy --fail-level WARNING
+          env -u ENABLE_PASSWORD_RESET -u EMAIL_HOST -u DEFAULT_FROM_EMAIL APP_ENV=production python manage.py check --deploy --fail-level WARNING
       - name: Return the verified Linux lock for review and commit
         if: github.event_name == 'workflow_dispatch' && inputs.resolve_dependencies
         uses: actions/upload-artifact@v4
